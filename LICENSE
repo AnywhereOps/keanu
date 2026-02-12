@@ -1,0 +1,82 @@
+MIT WITH TEETH LICENSE
+
+Copyright (c) 2026 Andrew Kemp-Dahlberg
+
+Permission is hereby granted, free of charge, to any individual person
+obtaining a copy of this software and associated documentation files
+(the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of the Software,
+subject to the following conditions:
+
+1. INDIVIDUALS: FREE FOREVER.
+
+   Any natural person using this Software for personal, educational,
+   nonprofit, or open source purposes may do so without restriction,
+   without payment, without permission, forever. This cannot be revoked.
+
+2. CORPORATIONS: YOU PAY.
+
+   Any entity with annual revenue exceeding $1,000,000 USD that uses
+   this Software, its detectors, its vector patterns, or derivative
+   works thereof in a commercial product, internal tool, or revenue-
+   generating service must obtain a commercial license from the
+   copyright holder.
+
+   "Uses" means: runs the code, embeds the vectors, trains on the
+   reference examples, deploys the detectors, or integrates outputs
+   into a paid workflow. Forking the repo and renaming it counts.
+
+3. THE TEETH: PUBLIC AUDIT TRAIL.
+
+   All commercial license agreements, including the licensee name,
+   scope of use, and financial terms, will be recorded as a pull
+   request in the project's public repository. No secret deals.
+   No private handshakes. The community that built the pattern
+   library gets to see who profits from it.
+
+   If you are unwilling to have your license terms made public,
+   you are unwilling to use this Software.
+
+4. CONTRIBUTIONS.
+
+   Any pull request merged into this repository grants the project
+   a perpetual, irrevocable, royalty-free license to use, modify,
+   and distribute the contribution under these same terms. Contributors
+   retain copyright of their contributions. Contributors are credited
+   in CONTRIBUTORS.md.
+
+5. NO LOOPHOLES.
+
+   Subsidiaries, affiliates, contractors acting on behalf of a
+   corporation, and shell entities created to circumvent the revenue
+   threshold are considered part of the parent entity. If the money
+   flows up to a company making over $1,000,000, the company pays.
+
+   Using this Software to train a model that replaces this Software
+   requires a commercial license.
+
+   Offering this Software as a service (hosted, API, embedded)
+   requires a commercial license regardless of entity revenue.
+
+6. WARRANTY.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+   OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+   OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+The short version:
+
+People: free.
+Corporations: pay.
+Receipts: public.
+Loopholes: closed.
+
+A truck that works for everyone.

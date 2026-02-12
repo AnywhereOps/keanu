@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+dist/
+build/
+
+# baked vectors - regenerate with: python3 silverado.py bake
+# committed for zero-friction cloning. if you edit reference-examples.md or lens-examples.md, rebake.
+# .chroma/
