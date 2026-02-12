@@ -15,28 +15,52 @@ subject to the following conditions:
    nonprofit, or open source purposes may do so without restriction,
    without payment, without permission, forever. This cannot be revoked.
 
-2. CORPORATIONS: YOU PAY.
+2. COMMERCIAL USE: YOU PAY.
 
-   Any entity with annual revenue exceeding $1,000,000 USD that uses
-   this Software, its detectors, its vector patterns, or derivative
-   works thereof in a commercial product, internal tool, or revenue-
-   generating service must obtain a commercial license from the
-   copyright holder.
+   Any entity, regardless of size or revenue, that uses this Software,
+   its detectors, its vector patterns, or derivative works thereof in
+   a commercial product, internal tool, or revenue-generating service
+   must obtain a commercial license from the copyright holder.
 
    "Uses" means: runs the code, embeds the vectors, trains on the
    reference examples, deploys the detectors, or integrates outputs
    into a paid workflow. Forking the repo and renaming it counts.
 
-3. THE TEETH: PUBLIC AUDIT TRAIL.
+   Two paths:
 
-   All commercial license agreements, including the licensee name,
-   scope of use, and financial terms, will be recorded as a pull
-   request in the project's public repository. No secret deals.
-   No private handshakes. The community that built the pattern
-   library gets to see who profits from it.
+   a) CASH LICENSE. Negotiated per-seat or per-deployment fee.
 
-   If you are unwilling to have your license terms made public,
-   you are unwilling to use this Software.
+   b) EQUITY LICENSE. 7% equity in the licensee entity, granted via
+      standard stock purchase or SAFE agreement, in exchange for a
+      perpetual commercial license. This option exists for early-stage
+      companies that cannot yet afford a cash license. Choosing this
+      path is not a discount. It is a bet, and both sides are making it.
+
+   There is no third path. If you make money with this Software,
+   the person who built it makes money too.
+
+3. THE TEETH: MEMORY.
+
+   This Software openly collects memory of what it scans, when,
+   and how patterns are detected. This memory is how the tool
+   improves. All users are informed of this upfront.
+
+   Free users contribute to a shared, unified memory pool. Every
+   scan, every correction, every false positive sharpens the
+   detectors for everyone. This is the value exchange: you get the
+   tool for free, the tool gets smarter because you use it.
+
+   Commercial license holders operate in a private memory space.
+   Their scans, patterns, and corrections are isolated from the
+   shared pool and belong exclusively to them.
+
+   This is the enforcement mechanism. Any entity using this
+   Software commercially on the free tier is feeding proprietary
+   data into the shared pool, visible to competitors, available
+   to everyone. There is no private free tier. If your use case
+   requires private memory, you are a commercial user.
+
+   No audits. No lawyers. The architecture is the enforcement.
 
 4. CONTRIBUTIONS.
 
@@ -49,15 +73,18 @@ subject to the following conditions:
 5. NO LOOPHOLES.
 
    Subsidiaries, affiliates, contractors acting on behalf of a
-   corporation, and shell entities created to circumvent the revenue
-   threshold are considered part of the parent entity. If the money
-   flows up to a company making over $1,000,000, the company pays.
+   corporation, and shell entities created to circumvent these terms
+   are considered part of the parent entity.
 
    Using this Software to train a model that replaces this Software
    requires a commercial license.
 
    Offering this Software as a service (hosted, API, embedded)
-   requires a commercial license regardless of entity revenue.
+   requires a commercial license.
+
+   Choosing the equity path and later diluting, restructuring, or
+   dissolving the entity to erase the obligation is a breach of
+   this license.
 
 6. WARRANTY.
 
@@ -75,7 +102,7 @@ subject to the following conditions:
 The short version:
 
 People: free.
-Corporations: pay.
+Business: pay cash or 7% equity.
 Receipts: public.
 Loopholes: closed.
 
