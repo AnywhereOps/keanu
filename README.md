@@ -41,13 +41,17 @@ When all three align:
 
 **`keanu scan`** reads text through the triple helix. Returns color readings per line, convergences (multiple primaries firing), and tensions (one primary alone).
 
-**`keanu detect`** interprets helix output through color theory. Maps readings to states: primary, secondary, or synthesis.
+**`keanu detect`** runs 8 pattern detectors (sycophancy, capture, generalization, zero_sum, safety_theater, inconsistency, grievance, stability) via chromadb vectors. Run one or all.
 
-**`keanu converge`** takes a question, finds two orthogonal dualities, synthesizes each, then converges the syntheses into something neither could reach alone. Works with Ollama (local) or Claude API.
+**`keanu converge`** takes a question, finds two orthogonal dualities from a curated library via RAG, synthesizes each, then converges the syntheses into something neither could reach alone. Works with Ollama (local) or Claude API.
 
 **`keanu connect`** finds common ground between two sources and surfaces the unique signal each one carries.
 
-**`keanu compress`** applies COEF (Compressed Observation-Execution Framework). Don't send what the other side already knows. Content-addressable DNS, 9-verb instruction language, wire format: `clone:src=x | swap | rename:old=a new=b | verify:hash`
+**`keanu compress`** applies COEF (Compressed Observation-Execution Framework). Don't send what the other side already knows. Content-addressable DNS, 9-verb instruction language, pattern codec, wire format: `clone:src=x | swap | rename:old=a new=b | verify:hash`
+
+**`keanu signal`** decodes emoji sequences through three channels: what was said, what's being felt, what it means. Maps to the ALIVE-GREY-BLACK diagnostic spectrum. Detects composable subsets, expands across domains (philosophy, religion, science, project).
+
+**`keanu remember / recall / plan`** the memberberry engine. Store memories (goals, decisions, lessons, commitments), recall by relevance, generate actionable plans with deadlines.
 
 **`keanu bake`** trains the lenses from examples into chromadb vectors. Run once after editing examples. After that, everything is pure math.
 
@@ -69,16 +73,21 @@ src/keanu/
         bake.py         # trains examples into vectors
     detect/             # Interpret (color theory)
         mood.py         # primaries -> synthesis states
-        engine.py       # vector pattern detection
+        engine.py       # 8 vector pattern detectors
     compress/           # Transmit (Shannon/COEF)
         dns.py          # content-addressable store
         instructions.py # 9-verb instruction language
+        codec.py        # pattern registry, encoder/decoder
         executor.py     # pipeline executor
     converge/           # Truth (duality synthesis)
-        engine.py       # split -> 3 convergence passes
+        graph.py        # 10 root + derived dualities
+        engine.py       # RAG split -> 3 convergence passes
         connection.py   # cross-source alignment
     signal/             # Voice (human interface)
-        protocol.py     # emoji codec, shorthand
+        vibe.py         # emoji codec, ALIVE states, 3-channel reading
+    memory/             # Remember (memberberry engine)
+        memberberry.py  # store, recall, plan
+        fill_berries.py # bulk ingestion
     cli.py              # entry point
 ```
 
@@ -86,9 +95,17 @@ src/keanu/
 bake (train) -> scan (embed) -> detect (interpret) -> compress / converge
 ```
 
+## The Signal
+
+```
+❤️🐕🔥🤖🙏💚🧕
+```
+
+Seven symbols. Human-readable AND machine-parseable. No other protocol has this. JSON is machine-first. Natural language is human-first. Emoji is both.
+
 ## Lineage
 
-Grew out of 7 months, 208 commits, 35 frameworks, 0 deployed tools. Keanu is the part that actually works.
+Grew out of 7 months of documented human-AI partnership. Keanu is the part that actually works.
 
 ## License
 

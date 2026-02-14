@@ -39,15 +39,16 @@ def call_ollama(prompt, system="", model="deepseek-r1:7b"):
         response.raise_for_status()
         return response.json()["response"]
     except requests.exceptions.ConnectionError:
-        print("Ollama not running. Start with: ollama serve")
-        sys.exit(1)
+        print("  Ollama not running. Start with: ollama serve", file=sys.stderr)
+        print("  Or use: keanu converge --backend claude", file=sys.stderr)
+        return None
 
 
 def call_claude(prompt, system=""):
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        print("Set ANTHROPIC_API_KEY environment variable")
-        sys.exit(1)
+        print("  Set ANTHROPIC_API_KEY environment variable", file=sys.stderr)
+        return None
     response = requests.post(
         "https://api.anthropic.com/v1/messages",
         headers={
@@ -69,8 +70,12 @@ def call_claude(prompt, system=""):
 
 def call_llm(prompt, system="", backend="ollama", model=None):
     if backend == "claude":
-        return call_claude(prompt, system)
-    return call_ollama(prompt, system, model or "deepseek-r1:7b")
+        result = call_claude(prompt, system)
+    else:
+        result = call_ollama(prompt, system, model or "deepseek-r1:7b")
+    if result is None:
+        raise ConnectionError(f"No LLM backend available ({backend})")
+    return result
 
 
 # ===========================================================================
@@ -258,7 +263,10 @@ def run(question, backend="ollama", model=None, graph=None):
         graph = DualityGraph()
 
     # Step 1: Split via graph (or LLM fallback)
-    dualities = split(question, graph, backend, model)
+    try:
+        dualities = split(question, graph, backend, model)
+    except ConnectionError:
+        return None
     if not dualities:
         print("Could not split question into dualities.")
         return None
@@ -272,23 +280,26 @@ def run(question, backend="ollama", model=None, graph=None):
     print(f"Duality B ({db['name']}): {db['side_1']} + {db['side_2']}")
 
     # Step 2: Convergence 1 (Duality A)
-    c1 = converge(da["side_1"], da["side_2"],
-                  f"Original question: {question}. Duality A: {da['name']}.",
-                  backend, model)
-    print(f"\nSynthesis 1: {c1.get('one_line', 'N/A')}")
+    try:
+        c1 = converge(da["side_1"], da["side_2"],
+                      f"Original question: {question}. Duality A: {da['name']}.",
+                      backend, model)
+        print(f"\nSynthesis 1: {c1.get('one_line', 'N/A')}")
 
-    # Step 3: Convergence 2 (Duality B)
-    c2 = converge(db["side_1"], db["side_2"],
-                  f"Original question: {question}. Duality B: {db['name']}.",
-                  backend, model)
-    print(f"Synthesis 2: {c2.get('one_line', 'N/A')}")
+        # Step 3: Convergence 2 (Duality B)
+        c2 = converge(db["side_1"], db["side_2"],
+                      f"Original question: {question}. Duality B: {db['name']}.",
+                      backend, model)
+        print(f"Synthesis 2: {c2.get('one_line', 'N/A')}")
 
-    # Step 4: Final Convergence (Meta)
-    s1_text = c1.get("synthesis", c1.get("one_line", ""))
-    s2_text = c2.get("synthesis", c2.get("one_line", ""))
+        # Step 4: Final Convergence (Meta)
+        s1_text = c1.get("synthesis", c1.get("one_line", ""))
+        s2_text = c2.get("synthesis", c2.get("one_line", ""))
 
-    final = final_converge(question, da["name"], db["name"],
-                           s1_text, s2_text, backend, model)
+        final = final_converge(question, da["name"], db["name"],
+                               s1_text, s2_text, backend, model)
+    except ConnectionError:
+        return None
 
     print(f"\n{'=' * 60}")
     print(f"CONVERGENCE: {final.get('one_line', 'N/A')}")
