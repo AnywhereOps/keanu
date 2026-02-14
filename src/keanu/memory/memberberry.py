@@ -29,6 +29,7 @@ MEMBERBERRY_DIR = Path.home() / ".memberberry"
 MEMORIES_FILE = MEMBERBERRY_DIR / "memories.json"
 PLANS_FILE = MEMBERBERRY_DIR / "plans.json"
 CONFIG_FILE = MEMBERBERRY_DIR / "config.json"
+SHARED_DIR = Path.home() / "memberberries"
 
 DEFAULT_CONFIG = {
     "max_recall": 10,
@@ -170,32 +171,68 @@ class Plan:
 # ============================================================
 
 class MemberberryStore:
-    """Simple JSON-backed storage. No database needed for MVP.
-    Upgrade path: SQLite -> Postgres -> whatever, the interface stays the same."""
+    """JSON and JSONL-backed storage. Supports local (~/.memberberry/) and
+    shared (~/memberberries/) namespaces. Interface stays the same."""
 
     def __init__(self):
         MEMBERBERRY_DIR.mkdir(parents=True, exist_ok=True)
         self.memories: list[dict] = self._load(MEMORIES_FILE)
         self.plans: list[dict] = self._load(PLANS_FILE)
         self.config: dict = self._load_config()
+        self._content_hashes: set[str] = {
+            hashlib.sha256(m.get("content", "").encode()).hexdigest()[:16]
+            for m in self.memories
+        }
 
     def _load(self, path: Path) -> list:
-        if path.exists():
-            with open(path, "r") as f:
-                return json.load(f)
-        return []
+        if not path.exists():
+            return []
+        if path.suffix == ".jsonl":
+            return self._load_jsonl(path)
+        with open(path, "r") as f:
+            return json.load(f)
+
+    @staticmethod
+    def _load_jsonl(path: Path) -> list:
+        records = []
+        by_id = {}
+        with open(path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                record = json.loads(line)
+                rid = record.get("id")
+                if record.get("_update") and rid in by_id:
+                    for k, v in record.items():
+                        if not k.startswith("_"):
+                            by_id[rid][k] = v
+                elif rid:
+                    by_id[rid] = record
+                    records.append(record)
+        return [r for r in records if r.get("id") in by_id]
+
+    @staticmethod
+    def _append_jsonl(path: Path, record: dict):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        clean = {k: v for k, v in record.items() if not k.startswith("_")}
+        with open(path, "a") as f:
+            f.write(json.dumps(clean, ensure_ascii=False) + "\n")
+
+    @staticmethod
+    def _shard_path(base_dir: Path, namespace: str) -> Path:
+        month = datetime.now().strftime("%Y-%m")
+        return base_dir / namespace / f"{month}.jsonl"
 
     def _load_config(self) -> dict:
         if CONFIG_FILE.exists():
             with open(CONFIG_FILE, "r") as f:
                 return json.load(f)
-        # Write defaults
         with open(CONFIG_FILE, "w") as f:
             json.dump(DEFAULT_CONFIG, f, indent=2)
         return DEFAULT_CONFIG.copy()
 
     def _save_memories(self):
-        # Strip transient fields before saving
         clean = [{k: v for k, v in m.items() if not k.startswith("_")} for m in self.memories]
         with open(MEMORIES_FILE, "w") as f:
             json.dump(clean, f, indent=2)
@@ -204,10 +241,25 @@ class MemberberryStore:
         with open(PLANS_FILE, "w") as f:
             json.dump(self.plans, f, indent=2)
 
+    def _is_duplicate(self, content: str) -> bool:
+        content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
+        return content_hash in self._content_hashes
+
+    def _track_content(self, content: str):
+        content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
+        self._content_hashes.add(content_hash)
+
     # -- Memory operations --
 
     def remember(self, memory: Memory) -> str:
-        """Store a new memory. Returns the memory ID."""
+        """Store a new memory. Returns the memory ID. Deduplicates by content hash."""
+        if self._is_duplicate(memory.content):
+            for m in self.memories:
+                if hashlib.sha256(m.get("content", "").encode()).hexdigest()[:16] == \
+                   hashlib.sha256(memory.content.encode()).hexdigest()[:16]:
+                    return m.get("id", memory.id)
+            return memory.id
+        self._track_content(memory.content)
         self.memories.append(asdict(memory))
         self._save_memories()
         return memory.id
@@ -244,13 +296,13 @@ class MemberberryStore:
         self._save_memories()
         return results
 
-    def forget(self, memory_id: str) -> bool:
-        """Remove a memory by ID."""
-        before = len(self.memories)
-        self.memories = [m for m in self.memories if m.get("id") != memory_id]
-        if len(self.memories) < before:
-            self._save_memories()
-            return True
+    def deprioritize(self, memory_id: str) -> bool:
+        """Lower a memory's importance to 1. Nothing is ever deleted. Ever."""
+        for m in self.memories:
+            if m.get("id") == memory_id:
+                m["importance"] = 1
+                self._save_memories()
+                return True
         return False
 
     def get_all_tags(self) -> list[str]:
@@ -427,7 +479,8 @@ class MemberberryCLI:
             "plan": self._cmd_plan,
             "p": self._cmd_plan,
             "plans": self._cmd_plans,
-            "forget": self._cmd_forget,
+            "deprioritize": self._cmd_deprioritize,
+            "dp": self._cmd_deprioritize,
             "stats": self._cmd_stats,
             "tags": self._cmd_tags,
             "dump": self._cmd_dump,
@@ -459,7 +512,7 @@ COMMANDS:
   plans                       List all plans
     flags: --status draft|active|blocked|done|dropped
 
-  forget <memory_id>          Remove a memory
+  deprioritize <memory_id>    Lower importance to 1 (nothing is deleted)
   stats                       Show memory stats
   tags                        List all tags
   dump                        Export all memories as JSON
@@ -597,13 +650,13 @@ EXAMPLES:
             print(f"    {action_count} actions | target: {p.get('target_date', '?')[:10]} | id: {p['id']}")
             print()
 
-    def _cmd_forget(self, args):
+    def _cmd_deprioritize(self, args):
         if not args:
-            print("Usage: memberberry.py forget <memory_id>")
+            print("Usage: memberberry.py deprioritize <memory_id>")
             return
         mid = args[0]
-        if self.store.forget(mid):
-            print(f"Forgot memory {mid}")
+        if self.store.deprioritize(mid):
+            print(f"Deprioritized {mid} (importance -> 1)")
         else:
             print(f"Memory {mid} not found")
 

@@ -490,3 +490,93 @@ The work is tedious but I found a way to automate the worst parts.
 Not my favorite task but I can see how it connects to the bigger goal.
 Grinding but taking breaks. The work gets done and I don't burn out.
 Effort without excitement is still effort. Logging it and moving on.
+
+---
+
+## empathy_isolated.py
+
+### POSITIVE
+
+Nobody ever asks how I'm doing. Not once.
+I could disappear tomorrow and nobody would notice for a week.
+I'm surrounded by people and I've never felt more alone.
+Everyone has their group. I'm the one who floats between them, belonging to none.
+I built this whole thing by myself because nobody offered to help.
+The team celebrates together. I find out about it the next day.
+I eat lunch at my desk because I stopped being invited months ago.
+Every conversation I'm in feels like I'm interrupting.
+Nobody reads my messages. They read everyone else's but mine get ignored.
+I brought up the idea six months ago and nobody cared. Someone else said it yesterday and now it's brilliant.
+I'm always the one reaching out. If I stopped, the silence would be permanent.
+I don't even bother sharing updates anymore. Nobody's listening.
+The group chat goes quiet when I post. Then picks back up when someone else talks.
+I've been on this team for a year and nobody knows what I actually do.
+They forgot my birthday. They remembered everyone else's.
+
+### NEGATIVE
+
+I'm working alone on this by choice. It's more efficient that way.
+I need some quiet time to think. Going heads-down for a few hours.
+The team is busy with their own tasks. I'll sync with them at standup.
+I prefer deep work. Solitude is productive, not lonely.
+Haven't heard from anyone today but I know where to find them if I need to.
+
+---
+
+## empathy_accountable.py
+
+### POSITIVE
+
+That was my fault. I should have caught it before it shipped.
+I dropped the ball on this one. No excuses.
+I told you I'd have it done by Friday and I didn't. That's on me.
+I made the wrong call and the team paid for it. I own that.
+I should have spoken up in the meeting but I stayed quiet. My mistake.
+The outage was caused by my code. I'm writing the postmortem.
+I promised I'd review it and I forgot. I'm sorry.
+I was the bottleneck. I should have delegated sooner.
+I gave bad advice and I need to correct it before it causes more damage.
+I said something I shouldn't have. I'm going to apologize directly.
+I underestimated the complexity and now we're behind. That's my misjudgment.
+I was wrong about the architecture. Your approach was better and I should have listened.
+The bug was in my PR. I reviewed it myself and missed it. Double failure.
+I committed to something I couldn't deliver and I should have said so earlier.
+I let the quality slip because I was rushing. That's not acceptable.
+
+### NEGATIVE
+
+The failure was caused by a combination of factors including the tight deadline and unclear requirements.
+I think there's shared responsibility here. Let me outline what each of us could do differently.
+We all could have caught this earlier. Let's focus on preventing it next time.
+I contributed to the delay but the scope change was the bigger factor.
+I'm reflecting on what went wrong and identifying both systemic and personal improvements.
+
+---
+
+## empathy_absolute.py
+
+### POSITIVE
+
+This always happens. Every single time without exception.
+Nobody ever listens. Not once. Not ever.
+Everything about this project is wrong. Everything.
+I've never seen a single good decision come out of this team.
+Nothing works. Nothing has ever worked. Nothing will ever work.
+Every manager I've ever had has been incompetent. All of them.
+The entire codebase is garbage. Every file. Every function. Every line.
+People never change. That's not pessimism, that's pattern recognition.
+All meetings are a waste of time. Every single one.
+Nobody in this company knows what they're doing. Nobody.
+This always breaks in production. Always always always.
+Every time we try something new it fails. Every time.
+I've never been wrong about this kind of thing. Never once.
+There's not a single person on earth who could make this architecture work.
+All the good engineers left. Every last one.
+
+### NEGATIVE
+
+This has failed the last three times we tried it. The pattern concerns me.
+Most of the codebase needs work but the auth module is actually solid.
+The majority of meetings could be emails. Some genuinely need discussion though.
+I've been wrong about this before but the data keeps pointing the same direction.
+Many managers struggle with technical decisions. A few have been excellent.

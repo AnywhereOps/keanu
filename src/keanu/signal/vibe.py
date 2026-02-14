@@ -342,29 +342,22 @@ class EmotionalRead:
     intensity: float   # 0.0 to 1.0
 
 
-_EMPATHY_PATTERNS: list[tuple[re.Pattern, str, str, float]] = [
-    (re.compile(p, re.IGNORECASE), state, empathy, intensity)
-    for p, state, empathy, intensity in [
-        (r"\b(fuck|shit|damn|hell)\b", "frustrated", "anger is information", 0.6),
-        (r"\b(confused|lost|idk|don'?t understand)\b", "confused", "needs a map not a lecture", 0.5),
-        (r"\b(why|how come|what if)\b", "questioning", "genuinely trying to understand", 0.3),
-        (r"\b(never|always|every time|nobody)\b", "absolute", "pattern recognition firing", 0.4),
-        (r"\b(sorry|apologize|my bad|my fault)\b", "accountable", "taking ownership", 0.3),
-        (r"\b(whatever|fine|sure|okay)\b", "withdrawn", "checked out or protecting", 0.5),
-        (r"\b(no one|alone|lonely|nobody cares)\b", "isolated", "needs presence not advice", 0.7),
-        (r"\b(excited|pumped|stoked|hyped|let'?s go)\b", "energized", "momentum is real, ride it", 0.4),
-        (r"\b(try|attempt|working on|figuring)\b", "effortful", "in the arena not the stands", 0.3),
-    ]
-]
-
-
 def read_emotion(text: str) -> list[EmotionalRead]:
-    """Detect emotional states from text. Returns all matches."""
-    reads = []
-    for pat, state, empathy, intensity in _EMPATHY_PATTERNS:
-        if pat.search(text):
-            reads.append(EmotionalRead(state=state, empathy=empathy, intensity=intensity))
-    return reads
+    """Detect emotional states from text using empathy vectors.
+
+    Delegates to detect.engine.detect_emotion() for vector-based detection.
+    Vectors always. For both human and AI.
+    """
+    from keanu.detect.engine import detect_emotion
+    vector_reads = detect_emotion(text)
+    return [
+        EmotionalRead(
+            state=r["state"],
+            empathy=r["empathy"],
+            intensity=r["intensity"],
+        )
+        for r in vector_reads
+    ]
 
 
 # ===========================================================================

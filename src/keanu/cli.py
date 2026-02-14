@@ -12,6 +12,9 @@ Usage:
     keanu recall "what am I building" # recall relevant memories
     keanu plan "next week"          # generate plan from memories
     keanu fill interactive          # guided memory ingestion
+    keanu sync                      # pull shared memories from git
+    keanu disagree record --topic "x" --human "y" --ai "z"  # track disagreement
+    keanu disagree stats            # bilateral accountability metrics
     keanu todo                      # generate effort-aware TODO.md
 """
 
@@ -84,10 +87,18 @@ def cmd_detect(args):
             output_json=args.json)
 
 
+def _get_store(shared=False):
+    if shared:
+        from keanu.memory import GitStore
+        return GitStore()
+    from keanu.memory import MemberberryStore
+    return MemberberryStore()
+
+
 def cmd_remember(args):
     """Store a memory."""
-    from keanu.memory import Memory, MemberberryStore
-    store = MemberberryStore()
+    from keanu.memory import Memory
+    store = _get_store(args.shared)
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else []
     memory = Memory(
         content=args.content,
@@ -104,8 +115,7 @@ def cmd_remember(args):
 
 def cmd_recall(args):
     """Recall relevant memories."""
-    from keanu.memory import MemberberryStore
-    store = MemberberryStore()
+    store = _get_store(args.shared)
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else None
     results = store.recall(
         query=args.query or "",
@@ -165,20 +175,27 @@ def cmd_plans(args):
         print()
 
 
-def cmd_forget(args):
-    """Remove a memory."""
-    from keanu.memory import MemberberryStore
-    store = MemberberryStore()
-    if store.forget(args.memory_id):
-        print(f"  Forgot memory {args.memory_id}")
+def cmd_deprioritize(args):
+    """Lower a memory's importance. Nothing is ever deleted."""
+    store = _get_store(args.shared)
+    if store.deprioritize(args.memory_id):
+        print(f"  Deprioritized {args.memory_id} (importance -> 1)")
     else:
         print(f"  Memory {args.memory_id} not found")
 
 
+def cmd_sync(args):
+    """Pull latest shared memories from git."""
+    from keanu.memory import GitStore
+    store = GitStore()
+    store.sync()
+    s = store.stats()
+    print(f"  Synced. {s['shared_memories']} shared memories across {len(s['namespaces'])} namespaces.")
+
+
 def cmd_stats(args):
     """Show memory stats."""
-    from keanu.memory import MemberberryStore
-    store = MemberberryStore()
+    store = _get_store(getattr(args, 'shared', False))
     s = store.stats()
     print(f"\n  memberberry stats")
     print(f"  Memories: {s['total_memories']}")
@@ -213,6 +230,57 @@ def cmd_fill(args):
             project=args.project or "",
             archetype=args.archetype or "",
         )
+
+
+def cmd_disagree(args):
+    """Record or resolve a disagreement. Both sides get vectors."""
+    from keanu.memory import DisagreementTracker
+    store = _get_store(args.shared)
+    tracker = DisagreementTracker(store)
+
+    if args.action == "record":
+        if not args.topic or not args.human or not args.ai:
+            print("Usage: keanu disagree record --topic 'x' --human 'y' --ai 'z'")
+            return
+        d = tracker.record(args.topic, args.human, args.ai)
+        print(f"  Recorded disagreement: {d.topic}")
+        print(f"  id: {d.id}")
+        if d.human_reading:
+            print(f"  Human emotional reads: {', '.join(r['state'] for r in d.human_reading)}")
+        if d.ai_reading:
+            print(f"  AI emotional reads: {', '.join(r['state'] for r in d.ai_reading)}")
+
+    elif args.action == "resolve":
+        if not args.id or not args.winner:
+            print("Usage: keanu disagree resolve --id <id> --winner human|ai|compromise")
+            return
+        if tracker.resolve(args.id, args.winner, resolved_by=args.resolved_by or ""):
+            print(f"  Resolved {args.id}: {args.winner}")
+        else:
+            print(f"  Disagreement {args.id} not found")
+
+    elif args.action == "stats":
+        s = tracker.stats()
+        print(f"\n  Disagreement stats")
+        print(f"  Total: {s['total']} | Resolved: {s['resolved']} | Unresolved: {s['unresolved']}")
+        if s['resolved'] > 0:
+            print(f"  Human wins: {s['human_wins']} | AI wins: {s['ai_wins']} | Compromises: {s['compromises']}")
+        if s['alerts']:
+            print()
+            for alert in s['alerts']:
+                print(f"  !! {alert}")
+        print()
+
+    elif args.action == "list":
+        records = tracker.get_all()
+        if not records:
+            print("  No disagreements recorded.")
+            return
+        print(f"\n  {len(records)} disagreement(s):\n")
+        for r in records:
+            print(f"  [{r.get('memory_type', '?')[:4].upper()}] {r['content']}")
+            print(f"    id: {r['id']}")
+        print()
 
 
 def cmd_todo(args):
@@ -285,6 +353,7 @@ def main():
     p_remember.add_argument("--tags", default="", help="Comma-separated tags")
     p_remember.add_argument("--importance", type=int, default=5, help="1-10 scale")
     p_remember.add_argument("--context", default="", help="Situational context")
+    p_remember.add_argument("--shared", action="store_true", help="Store in shared git repo")
     p_remember.set_defaults(func=cmd_remember)
 
     # recall
@@ -293,6 +362,7 @@ def main():
     p_recall.add_argument("--tags", default="", help="Comma-separated tag filter")
     p_recall.add_argument("--type", default=None, help="Filter by memory type")
     p_recall.add_argument("--limit", type=int, default=10, help="Max results")
+    p_recall.add_argument("--shared", action="store_true", help="Search shared git repo")
     p_recall.set_defaults(func=cmd_recall)
 
     # plan
@@ -309,13 +379,20 @@ def main():
                          help="Filter by status")
     p_plans.set_defaults(func=cmd_plans)
 
-    # forget
-    p_forget = subparsers.add_parser("forget", help="Remove a memory by ID")
-    p_forget.add_argument("memory_id", help="Memory ID to forget")
-    p_forget.set_defaults(func=cmd_forget)
+    # deprioritize (was forget - nothing dies)
+    p_depri = subparsers.add_parser("deprioritize", aliases=["dp"],
+                                     help="Lower memory importance (nothing is deleted)")
+    p_depri.add_argument("memory_id", help="Memory ID to deprioritize")
+    p_depri.add_argument("--shared", action="store_true", help="Deprioritize in shared repo")
+    p_depri.set_defaults(func=cmd_deprioritize)
+
+    # sync
+    p_sync = subparsers.add_parser("sync", help="Pull latest shared memories from git")
+    p_sync.set_defaults(func=cmd_sync)
 
     # stats
     p_stats = subparsers.add_parser("stats", help="Memory stats")
+    p_stats.add_argument("--shared", action="store_true", help="Include shared repo stats")
     p_stats.set_defaults(func=cmd_stats)
 
     # fill
@@ -327,6 +404,20 @@ def main():
     p_fill.add_argument("--project", default="", help="Project name (template mode)")
     p_fill.add_argument("--archetype", default="", help="Project archetype (template mode)")
     p_fill.set_defaults(func=cmd_fill)
+
+    # disagree
+    p_disagree = subparsers.add_parser("disagree", help="Track disagreements (both sides get vectors)")
+    p_disagree.add_argument("action", choices=["record", "resolve", "stats", "list"],
+                            help="What to do")
+    p_disagree.add_argument("--topic", default="", help="What the disagreement is about")
+    p_disagree.add_argument("--human", default="", help="What the human said")
+    p_disagree.add_argument("--ai", default="", help="What the AI said")
+    p_disagree.add_argument("--id", default="", help="Disagreement ID (for resolve)")
+    p_disagree.add_argument("--winner", default="", choices=["human", "ai", "compromise", ""],
+                            help="Who was right (for resolve)")
+    p_disagree.add_argument("--resolved-by", default="", help="Who resolved it")
+    p_disagree.add_argument("--shared", action="store_true", help="Use shared git repo")
+    p_disagree.set_defaults(func=cmd_disagree)
 
     # todo
     p_todo = subparsers.add_parser("todo", help="Generate effort-aware TODO.md")

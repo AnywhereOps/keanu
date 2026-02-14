@@ -1,4 +1,4 @@
-"""memory: remember, recall, plan. the memberberry engine."""
+"""memory: remember, recall, plan. nothing dies. the memberberry engine."""
 
 from .memberberry import (
     Memory,
@@ -9,6 +9,8 @@ from .memberberry import (
     MemberberryStore,
     PlanGenerator,
 )
+from .gitstore import GitStore
+from .disagreement import Disagreement, DisagreementTracker
 
 __all__ = [
     "Memory",
@@ -18,4 +20,7 @@ __all__ = [
     "Action",
     "MemberberryStore",
     "PlanGenerator",
+    "GitStore",
+    "Disagreement",
+    "DisagreementTracker",
 ]
