@@ -1,0 +1,82 @@
+[
+  {
+    "id": "root.existence",
+    "concept": "existence",
+    "pole_a": "being",
+    "pole_b": "nothing",
+    "tags": ["metaphysics", "ontology", "fundamental"],
+    "orthogonal_to": ["root.change", "root.value", "root.knowledge"]
+  },
+  {
+    "id": "root.change",
+    "concept": "change",
+    "pole_a": "static",
+    "pole_b": "dynamic",
+    "tags": ["time", "process", "fundamental"],
+    "orthogonal_to": ["root.existence", "root.structure"]
+  },
+  {
+    "id": "root.unity",
+    "concept": "unity",
+    "pole_a": "one",
+    "pole_b": "many",
+    "tags": ["number", "plurality", "fundamental"],
+    "orthogonal_to": ["root.relation"]
+  },
+  {
+    "id": "root.causation",
+    "concept": "causation",
+    "pole_a": "determined",
+    "pole_b": "random",
+    "tags": ["physics", "free_will", "agency", "fundamental"],
+    "orthogonal_to": ["root.value", "root.scale"]
+  },
+  {
+    "id": "root.value",
+    "concept": "value",
+    "pole_a": "good",
+    "pole_b": "evil",
+    "tags": ["ethics", "morality", "fundamental"],
+    "orthogonal_to": ["root.existence", "root.causation", "root.relation"]
+  },
+  {
+    "id": "root.knowledge",
+    "concept": "knowledge",
+    "pole_a": "known",
+    "pole_b": "unknown",
+    "tags": ["epistemology", "truth", "fundamental"],
+    "orthogonal_to": ["root.existence", "root.scale"]
+  },
+  {
+    "id": "root.relation",
+    "concept": "relation",
+    "pole_a": "self",
+    "pole_b": "other",
+    "tags": ["identity", "social", "fundamental"],
+    "orthogonal_to": ["root.unity", "root.value"]
+  },
+  {
+    "id": "root.scale",
+    "concept": "scale",
+    "pole_a": "micro",
+    "pole_b": "macro",
+    "tags": ["physics", "size", "zoom", "fundamental"],
+    "orthogonal_to": ["root.causation", "root.knowledge"]
+  },
+  {
+    "id": "root.time",
+    "concept": "time",
+    "pole_a": "past",
+    "pole_b": "future",
+    "tags": ["temporal", "arrow", "history", "fundamental"],
+    "orthogonal_to": ["root.structure"]
+  },
+  {
+    "id": "root.structure",
+    "concept": "structure",
+    "pole_a": "order",
+    "pole_b": "chaos",
+    "tags": ["entropy", "organization", "fundamental"],
+    "orthogonal_to": ["root.time", "root.change"]
+  }
+]
