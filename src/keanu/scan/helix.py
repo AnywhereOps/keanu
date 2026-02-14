@@ -1,14 +1,17 @@
 """
 helix.py - the triple strand.
 
-three primaries. each carries light and shadow.
-  red:    passion, intensity, conviction
-  yellow: awareness, presence, faith
-  blue:   depth, precision, structure
+three primaries. each has two poles.
+  red:    passion (+) vs rage (-)
+  yellow: awareness (+) vs fear (-)
+  blue:   depth (+) vs cold (-)
 
-when all three shine together = white
-when white is refined = silver
-when silver is grounded = sunrise
+convergence: multiple primaries strong in same line = rich signal
+tension: one primary dominates, others absent = investigate
+
+where all three fires burn = white (alive)
+where all three are ash = black (frankenstein)
+where fire and ash balance = sunrise (wisdom)
 
 collection: silverado_rgb
 """
@@ -26,8 +29,11 @@ def _get_chroma_dir():
     return str(Path(__file__).resolve().parent.parent.parent.parent / ".chroma")
 
 
+# ── dataclasses ──────────────────────────────────────────────
+
 @dataclass
 class PolarScore:
+    """one primary, both poles. the raw reading."""
     pos: float = 0.0
     neg: float = 0.0
     net: float = 0.0
@@ -35,6 +41,7 @@ class PolarScore:
 
 @dataclass
 class LineReading:
+    """one line through all three lenses."""
     line_num: int
     text: str
     red: PolarScore = field(default_factory=PolarScore)
@@ -47,6 +54,7 @@ class LineReading:
 
 @dataclass
 class Convergence:
+    """multiple primaries strong in same line. rich signal."""
     line_num: int
     text: str
     red: PolarScore = field(default_factory=PolarScore)
@@ -59,6 +67,7 @@ class Convergence:
 
 @dataclass
 class Tension:
+    """one primary dominates, others absent or negative."""
     line_num: int
     text: str
     dominant: str
@@ -89,7 +98,10 @@ class HelixReport:
     wisdom_score: float = 0.0
 
 
+# ── line filter ──────────────────────────────────────────────
+
 def _get_scannable(lines):
+    """filter to prose lines worth scanning."""
     scannable = []
     for i, line in enumerate(lines):
         s = line.strip()
@@ -102,7 +114,13 @@ def _get_scannable(lines):
     return scannable
 
 
+# ── embedding queries ────────────────────────────────────────
+
 def _query_pole(collection, text, lens, valence, n=3):
+    """
+    query one pole of one lens. return raw similarity score 0-1.
+    this is the atomic operation. everything else composes from here.
+    """
     try:
         result = collection.query(
             query_texts=[text],
@@ -117,10 +135,16 @@ def _query_pole(collection, text, lens, valence, n=3):
 
 
 def _query_primary(collection, text, lens, n=3):
+    """
+    query both poles of one primary. return PolarScore.
+    the mood detector needs both numbers, not just the net.
+    """
     pos = _query_pole(collection, text, lens, "positive", n)
     neg = _query_pole(collection, text, lens, "negative", n)
     return PolarScore(pos=pos, neg=neg, net=pos - neg)
 
+
+# ── the scan ─────────────────────────────────────────────────
 
 def helix_scan(lines, threshold=0.45,
                red_accel=None, yellow_accel=None, blue_accel=None):
@@ -147,6 +171,7 @@ def helix_scan(lines, threshold=0.45,
         print("  collection 'silverado_rgb' not found. run: keanu bake", file=sys.stderr)
         return None
 
+    # load calibration corrections
     accels = {"red": 1.0, "yellow": 1.0, "blue": 1.0}
     consumer_overrides = {
         "red": red_accel, "yellow": yellow_accel, "blue": blue_accel
@@ -154,14 +179,28 @@ def helix_scan(lines, threshold=0.45,
 
     try:
         cal = client.get_collection("silverado_rgb_cal")
+        cal_converged = cal.metadata.get("converged", "True") == "True"
+
+        mode = []
         for p in PRIMARIES:
             if consumer_overrides[p] is not None:
                 accels[p] = consumer_overrides[p]
+                mode.append("consumer-set")
             else:
                 accels[p] = float(cal.metadata.get(f"{p}_correction", "1.0"))
+
+        if not any(consumer_overrides[p] is not None for p in PRIMARIES):
+            mode.append("auto-calibrated")
+        if not cal_converged:
+            mode.append("cal-incomplete")
+
+        mode_str = ", ".join(sorted(set(mode)))
+        print(f"  [{mode_str}] R x{accels['red']:.3f}, Y x{accels['yellow']:.3f}, B x{accels['blue']:.3f}", file=sys.stderr)
+
     except Exception:
         for p in PRIMARIES:
             accels[p] = consumer_overrides[p] if consumer_overrides[p] is not None else 1.0
+        print(f"  [raw] R x{accels['red']:.3f}, Y x{accels['yellow']:.3f}, B x{accels['blue']:.3f}", file=sys.stderr)
 
     scannable = _get_scannable(lines)
     if not scannable:
@@ -178,12 +217,19 @@ def helix_scan(lines, threshold=0.45,
         y = _query_primary(collection, text, "yellow")
         b = _query_primary(collection, text, "blue")
 
-        r = PolarScore(pos=min(r.pos * accels["red"], 1.0), neg=r.neg,
-                       net=min(r.pos * accels["red"], 1.0) - r.neg)
-        y = PolarScore(pos=min(y.pos * accels["yellow"], 1.0), neg=y.neg,
-                       net=min(y.pos * accels["yellow"], 1.0) - y.neg)
-        b = PolarScore(pos=min(b.pos * accels["blue"], 1.0), neg=b.neg,
-                       net=min(b.pos * accels["blue"], 1.0) - b.neg)
+        # apply calibration to pos scores (neg stays raw, it's the ground truth)
+        r = PolarScore(
+            pos=min(r.pos * accels["red"], 1.0), neg=r.neg,
+            net=min(r.pos * accels["red"], 1.0) - r.neg,
+        )
+        y = PolarScore(
+            pos=min(y.pos * accels["yellow"], 1.0), neg=y.neg,
+            net=min(y.pos * accels["yellow"], 1.0) - y.neg,
+        )
+        b = PolarScore(
+            pos=min(b.pos * accels["blue"], 1.0), neg=b.neg,
+            net=min(b.pos * accels["blue"], 1.0) - b.neg,
+        )
 
         nets = {"red": r.net, "yellow": y.net, "blue": b.net}
         firing = {p for p, n in nets.items() if n >= threshold}
@@ -199,6 +245,7 @@ def helix_scan(lines, threshold=0.45,
         )
         readings.append(reading)
 
+        # convergence: 2+ primaries firing
         if len(firing) >= 2:
             richness = sum(nets[p] for p in firing)
             convergences.append(Convergence(
@@ -209,6 +256,7 @@ def helix_scan(lines, threshold=0.45,
                 detail=f"R:{r.net:+.3f} Y:{y.net:+.3f} B:{b.net:+.3f} ({len(firing)} firing)",
             ))
 
+        # tension: exactly 1 primary firing, others weak or ash
         if len(firing) == 1:
             loud = list(firing)[0]
             others = [p for p in PRIMARIES if p != loud]
@@ -225,87 +273,21 @@ def helix_scan(lines, threshold=0.45,
     return readings, convergences, tensions
 
 
-def _mood_from_detect(r_pos, r_neg, y_pos, y_neg, b_pos, b_neg):
-    """Bridge helix output (0-1) to mood detector (0-10)."""
-    try:
-        from keanu.detect.mood import detect
-        reading = detect(
-            red_pos=r_pos * 10, red_neg=r_neg * 10,
-            yellow_pos=y_pos * 10, yellow_neg=y_neg * 10,
-            blue_pos=b_pos * 10, blue_neg=b_neg * 10,
-        )
-        return asdict(reading) if hasattr(reading, '__dataclass_fields__') else reading
-    except ImportError:
-        pass
-    return _mood_fallback(r_pos, r_neg, y_pos, y_neg, b_pos, b_neg)
+# ── mood bridge ──────────────────────────────────────────────
+# all mood logic lives in detect/mood.py. helix just calls it.
+
+def _get_mood(r_pos, r_neg, y_pos, y_neg, b_pos, b_neg):
+    """bridge helix output (0-1) to mood detector (0-10)."""
+    from keanu.detect.mood import detect
+    reading = detect(
+        red_pos=r_pos * 10, red_neg=r_neg * 10,
+        yellow_pos=y_pos * 10, yellow_neg=y_neg * 10,
+        blue_pos=b_pos * 10, blue_neg=b_neg * 10,
+    )
+    return asdict(reading)
 
 
-def _mood_fallback(r_pos, r_neg, y_pos, y_neg, b_pos, b_neg):
-    """Standalone mood when detect() isn't available."""
-    r_net = r_pos - r_neg
-    y_net = y_pos - y_neg
-    b_net = b_pos - b_neg
-
-    fires = sum(1 for n in (r_net, y_net, b_net) if n > 0.1)
-    ashes = sum(1 for n in (r_net, y_net, b_net) if n < -0.05)
-
-    if fires == 3 and min(r_net, y_net, b_net) > 0.3:
-        state, symbol = "White", "⚪"
-        nudge = "all three fires burning. full spectrum."
-    elif fires >= 2 and ashes == 0:
-        if r_net > 0.1 and b_net > 0.1:
-            state, symbol = "Purple", "🟣"
-            nudge = "passion + depth. breakthrough zone."
-        elif r_net > 0.1 and y_net > 0.1:
-            state, symbol = "Orange", "🟠"
-            nudge = "passion + awareness. pull the trigger."
-        elif y_net > 0.1 and b_net > 0.1:
-            state, symbol = "Green", "🟢"
-            nudge = "awareness + depth. growing."
-        else:
-            state, symbol = "Alive", "🌅"
-            nudge = "multiple fires. moving."
-    elif fires == 1:
-        loud = max(zip((r_net, y_net, b_net), PRIMARIES))[1]
-        state = loud.capitalize()
-        symbol = {"red": "🔴", "yellow": "🟡", "blue": "🔵"}[loud]
-        nudges = {
-            "red": "passion without depth or awareness. channel it.",
-            "yellow": "watching without acting or analyzing. move or dig.",
-            "blue": "analyzing without caring or noticing. what does this mean to someone?",
-        }
-        nudge = nudges[loud]
-    elif ashes >= 2:
-        if max(r_neg, y_neg, b_neg) > 0.5:
-            state, symbol = "Black", "💀"
-            nudge = "multiple primaries in shadow. pause."
-        else:
-            state, symbol = "Grey", "⬜"
-            nudge = "thin signal. something wants to speak."
-    elif ashes == 1 and fires == 0:
-        state, symbol = "Silver", "🪞"
-        nudge = "polished but cold."
-    else:
-        state, symbol = "Silver", "🪞"
-        nudge = "thin signal."
-
-    black_flag = False
-    for p, pos, neg in zip(PRIMARIES, (r_pos, y_pos, b_pos), (r_neg, y_neg, b_neg)):
-        if pos > 0.4 and neg > 0.4:
-            black_flag = True
-            nudge = f"{p} may be performing (high on both poles). check tensions."
-            break
-
-    wise = round(min(max(r_net, 0), max(y_net, 0), max(b_net, 0)), 3)
-
-    return {
-        "state": state, "symbol": symbol,
-        "red": {"pos": round(r_pos, 3), "neg": round(r_neg, 3), "net": round(r_net, 3)},
-        "yellow": {"pos": round(y_pos, 3), "neg": round(y_neg, 3), "net": round(y_net, 3)},
-        "blue": {"pos": round(b_pos, 3), "neg": round(b_neg, 3), "net": round(b_net, 3)},
-        "wise_mind": wise, "black_flag": black_flag, "nudge": nudge,
-    }
-
+# ── report formatting ────────────────────────────────────────
 
 def format_helix_report(report, title="HELIX SCAN"):
     out = []
@@ -319,8 +301,8 @@ def format_helix_report(report, title="HELIX SCAN"):
     out.append(f"  {symbol} {state}")
 
     for p in PRIMARIES:
-        pm = mood.get(p, {})
-        net = pm.get("net", 0)
+        pr = mood.get(p, {})
+        net = pr.get("net", 0)
         bar_len = int(abs(net) * 20)
         if net >= 0:
             bar = "█" * bar_len + "░" * (20 - bar_len)
@@ -363,8 +345,11 @@ def format_helix_report(report, title="HELIX SCAN"):
     return "\n".join(out)
 
 
+# ── main entry ───────────────────────────────────────────────
+
 def run(filepath, title="HELIX SCAN", output_json=False,
         red_accel=None, yellow_accel=None, blue_accel=None):
+    """point it at a file. it tells you what's alive and what's ash."""
     if filepath == "-":
         text = sys.stdin.read()
         filename = "stdin"
@@ -379,7 +364,7 @@ def run(filepath, title="HELIX SCAN", output_json=False,
 
     if result is None:
         report = HelixReport(filename=filename, total_lines=len(lines))
-        report.mood = _mood_fallback(0, 0, 0, 0, 0, 0)
+        report.mood = _get_mood(0, 0, 0, 0, 0, 0)
     else:
         readings, convergences, tensions = result
         report = HelixReport(
@@ -404,7 +389,7 @@ def run(filepath, title="HELIX SCAN", output_json=False,
                 max(report.blue_avg, 0),
             ), 3)
 
-        report.mood = _mood_from_detect(
+        report.mood = _get_mood(
             report.red_pos_avg, report.red_neg_avg,
             report.yellow_pos_avg, report.yellow_neg_avg,
             report.blue_pos_avg, report.blue_neg_avg,

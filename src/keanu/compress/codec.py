@@ -241,6 +241,26 @@ BUILTIN_PATTERNS = [
         description="Python class with __init__",
     ),
     Pattern(
+        pattern_id="detector_module",
+        template=(
+            '"""{{module_doc}}"""\n\n'
+            'import re\nfrom dataclasses import dataclass\n\n\n'
+            '@dataclass\nclass {{result_class}}:\n'
+            '    score: float\n    evidence: list[str]\n    recommendation: str\n\n\n'
+            'PATTERNS = [\n    {{pattern_list}}\n]\n\n\n'
+            'def detect(text: str) -> {{result_class}}:\n'
+            '    evidence = []\n'
+            '    for p in PATTERNS:\n'
+            '        if re.search(p, text, re.IGNORECASE):\n'
+            '            evidence.append(p)\n'
+            '    score = len(evidence) / len(PATTERNS) if PATTERNS else 0.0\n'
+            '    recommendation = "{{high_rec}}" if score > {{threshold}} else "{{low_rec}}"\n'
+            '    return {{result_class}}(score=score, evidence=evidence, recommendation=recommendation)\n'
+        ),
+        slots=["module_doc", "result_class", "pattern_list", "high_rec", "low_rec", "threshold"],
+        description="Silverado-style text detector module",
+    ),
+    Pattern(
         pattern_id="color_reading",
         template="[{{source}}] {{symbol}} {{state}} R:{{red}} Y:{{yellow}} B:{{blue}} wise:{{wise}}",
         slots=["source", "symbol", "state", "red", "yellow", "blue", "wise"],

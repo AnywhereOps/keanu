@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from keanu.compress.dns import ContentDNS, sha256
 from keanu.compress.instructions import COEFInstruction, COEFProgram
-from keanu.detect.mood import detect, scan_text, SynthesisReading
+from keanu.detect.mood import detect, SynthesisReading
 
 
 @dataclass
@@ -114,7 +114,7 @@ class COEFExecutor:
 
         wire = program.to_wire()
         ratio = len(self.workspace) / len(wire) if wire else 0
-        output_reading = scan_text(self.workspace) if self.workspace else detect()
+        output_reading = steps[-1].reading if steps else detect()
 
         return ExecutionResult(
             content=self.workspace,
@@ -128,16 +128,57 @@ class COEFExecutor:
         )
 
     def _score_step(self, inst, dns_miss, no_change, before, after):
-        if dns_miss:
-            event = "dns_miss: content not found"
-        elif no_change:
-            event = "no_change: workspace unchanged"
-        else:
-            event = f"ok: {inst.op}"
+        """Score each op by what it IS, not what the text looks like.
 
-        # let the text speak for itself
-        reading = scan_text(after) if after else detect()
-        return reading, event
+        MECHANICAL (clone, rename, literal, pipe, store):
+          Blue high (precise), Red moderate (action), Yellow low
+        CREATIVE (compose, regex):
+          Red higher (creation), Blue high (structured), Yellow moderate
+        FAILURE (dns_miss, no_change):
+          All negatives spike. Yellow-negative (paralysis), Blue-negative (blind)
+        """
+        op = inst.op
+
+        if dns_miss:
+            return detect(1, 2, 1, 7, 1, 6), "dns_miss: operating blind"
+
+        if no_change:
+            return detect(1, 1, 1, 5, 2, 5), "no_change: silent failure"
+
+        if op == "clone":
+            size = len(after) - len(before)
+            if size > 0:
+                return detect(5, 0, 4, 0, 8, 0), "ok: deterministic retrieval"
+            return detect(2, 0, 2, 3, 3, 2), "ok: empty clone"
+
+        if op == "rename":
+            changes = _count_changes(before, after)
+            r = min(6, 3 + changes * 0.3)
+            return detect(r, 0, 4, 0, 7, 0), f"ok: {changes} replacements"
+
+        if op in ("literal", "pipe"):
+            return detect(4, 0, 3, 0, 6, 0), f"ok: {op}"
+
+        if op == "store":
+            return detect(5, 0, 4, 0, 7, 0), "ok: committed to DNS"
+
+        if op == "compose":
+            parts = len(inst.args.get("parts", "").split(","))
+            r = min(8, 4 + parts)
+            y = min(7, 3 + parts * 0.5)
+            b = min(8, 5 + parts * 0.5)
+            return detect(r, 0, y, 0, b, 0), f"creative: {parts} sources composed"
+
+        if op == "regex":
+            changes = _count_changes(before, after)
+            return detect(5, 0, 4, 0, 8, 0), f"creative: regex, {changes} matches"
+
+        if op in ("swap", "inject"):
+            changes = _count_diff_lines(before, after)
+            r = min(6, 3 + changes * 0.2)
+            return detect(r, 0, 4, 0, 7, 0), f"ok: {changes} lines changed"
+
+        return detect(4, 0, 4, 0, 4, 0), f"ok: {op}"
 
     def _exec_one(self, inst):
         op, args = inst.op, inst.args

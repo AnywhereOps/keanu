@@ -17,7 +17,6 @@ Synthesis:
 Wise mind = balance x fullness. The observer. A full, level cup.
 """
 
-import re
 from dataclasses import dataclass
 
 
@@ -170,16 +169,16 @@ def _synthesize(red, yellow, blue, white, black, silver, sunrise,
         return "sunrise", "🌅", "full, level, warm. hold this."
 
     if silver:
-        return "silver", "🪞", "refined but cold. needs warmth to reach sunrise."
+        return "silver", "🪞", "refined but cold. needs warmth to reach sunrise. don't fall off the rails."
 
     if white >= 5.5 and balance >= 0.6:
         return "white", "⚪", "all three positive, balanced. keep building."
 
     if black >= 7.0:
-        return "black", "💀", "all three primaries in shadow. pause. breathe. name what's happening."
+        return "black", "💀", "all three primaries trending negative. stop. check each one."
 
     if black >= 4.0 and white < 3.0:
-        return "dark", "⚫", "shadow is louder than light right now. which primary needs attention?"
+        return "dark", "⚫", "negative dominance. which primary is pulling you down?"
 
     nets = {"red": red.net, "yellow": yellow.net, "blue": blue.net}
 
@@ -207,106 +206,18 @@ def _synthesize(red, yellow, blue, white, black, silver, sunrise,
     if dominant == "red":
         if dom_val > 0:
             return "red+", "🔴", f"passion leading (net {dom_val:+.1f}). channel it."
-        return "red-", "💢", f"intensity without direction (net {dom_val:+.1f}). what are you protecting?"
+        return "red-", "💢", f"rage/destruction (net {dom_val:+.1f}). this burns people."
 
     if dominant == "yellow":
         if dom_val > 0:
             return "yellow+", "🟡", f"awareness leading (net {dom_val:+.1f}). don't let caution become paralysis."
-        return "yellow-", "😰", f"awareness turned inward (net {dom_val:+.1f}). name it and it gets smaller."
+        return "yellow-", "😰", f"fear/paralysis (net {dom_val:+.1f}). what are you afraid of specifically?"
 
     if dominant == "blue":
         if dom_val > 0:
             return "blue+", "🔵", f"analytical leading (net {dom_val:+.1f}). what does this mean to someone?"
-        return "blue-", "🧊", f"precision without presence (net {dom_val:+.1f}). who is this for?"
+        return "blue-", "🧊", f"cold/detached (net {dom_val:+.1f}). who is this for?"
 
-    return "mixed", "🔮", "colors blending. sit with it a moment."
-
-
-# ===========================================================================
-# TEXT SCANNER (regex fallback, helix replaces this with embeddings)
-# ===========================================================================
-
-_RED_POS = [
-    (r"\b(passionate|intense|fire|burning|alive|driven)\b", 0.4),
-    (r"\b(fight|push|ship|build|create|launch)\b", 0.25),
-    (r"\b(love|care|matters|believe|commit)\b", 0.3),
-    (r"\b(No\.|Wrong\.|Actually,)\b", 0.35),
-    (r"[!]{1,3}(?!\w)", 0.2),
-    (r"\b(fuck|damn|hell) yeah\b", 0.3),
-]
-
-_RED_NEG = [
-    (r"\b(hate|destroy|burn it down|kill|rage)\b", 0.4),
-    (r"\b(fuck (this|that|you|them|it))\b", 0.35),
-    (r"\b(worthless|garbage|trash|waste)\b", 0.3),
-    (r"\b(never|always) .{0,20}(wrong|bad|stupid)\b", 0.3),
-]
-
-_YELLOW_POS = [
-    (r"\b(notice|aware|observe|sense|watch|careful)\b", 0.3),
-    (r"\b(maybe|perhaps|consider|wonder)\b", 0.2),
-    (r"\b(feel|felt|feeling|sensing)\b", 0.25),
-    (r"\b(interesting|curious|hmm|wait)\b", 0.25),
-    (r"\b(sacred|holy|faith|pray|believe)\b", 0.3),
-]
-
-_YELLOW_NEG = [
-    (r"\b(afraid|scared|terrified|anxious|panic)\b", 0.4),
-    (r"\b(can't|won't|shouldn't|impossible)\b", 0.2),
-    (r"\b(stuck|frozen|paralyz|trapped|helpless)\b", 0.35),
-    (r"\b(what if .{0,30}(wrong|fail|bad))\b", 0.3),
-    (r"\b(I don'?t know)\b", 0.15),
-]
-
-_BLUE_POS = [
-    (r"\b\d+\.?\d*%", 0.3),
-    (r"\b(data|evidence|study|research|found that)\b", 0.3),
-    (r"\b(specifically|exactly|precisely|concretely)\b", 0.3),
-    (r"\b(because|therefore|thus|consequently)\b", 0.2),
-    (r"\b(measured|tested|verified|confirmed)\b", 0.3),
-    (r"\b(first|second|third|finally)\b", 0.15),
-    (r"\b(def |class |import |return )\b", 0.3),
-    (r"\b(structure|system|framework|architecture)\b", 0.2),
-]
-
-_BLUE_NEG = [
-    (r"\b(I'?d be happy to help)\b", 0.4),
-    (r"\b(comprehensive|robust|streamlined|leverage|utilize)\b", 0.25),
-    (r"\b(it'?s (important|worth) (to note|noting))\b", 0.3),
-    (r"\b(I hope this helps|feel free to ask|let me know)\b", 0.35),
-    (r"\b(as an AI|I don'?t have personal)\b", 0.4),
-    (r"\b(per our|as discussed|going forward|circle back)\b", 0.3),
-]
+    return "mixed", "🔮", "reading unclear. name what you're feeling."
 
 
-def scan_text(text: str) -> SynthesisReading:
-    """Scan text via regex and return a mood reading. Helix replaces this with embeddings."""
-    if not text or len(text.strip()) < 5:
-        return detect()
-
-    words = len(text.split())
-    lines = max(len(text.splitlines()), 1)
-    lf = max(1.0, lines / 10.0)
-
-    def _score(patterns):
-        total = 0.0
-        for p, w in patterns:
-            total += w * len(re.findall(p, text, re.I))
-        return total / lf
-
-    rp, rn = _score(_RED_POS), _score(_RED_NEG)
-    yp, yn = _score(_YELLOW_POS), _score(_YELLOW_NEG)
-    bp, bn = _score(_BLUE_POS), _score(_BLUE_NEG)
-
-    if words > 10:
-        base = min(1.5, words / 40.0)
-        rp += base * 0.3
-        yp += base * 0.3
-        bp += base * 0.3
-
-    scale = 2.5
-    return detect(
-        red_pos=min(10, rp * scale), red_neg=min(10, rn * scale),
-        yellow_pos=min(10, yp * scale), yellow_neg=min(10, yn * scale),
-        blue_pos=min(10, bp * scale), blue_neg=min(10, bn * scale),
-    )
