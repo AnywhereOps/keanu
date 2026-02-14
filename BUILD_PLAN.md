@@ -1,4 +1,12 @@
-# WORKING TRUTH: BUILD PLAN
+# BUILD PLAN (ARCHIVED)
+
+> This document is from the initial build. Package was renamed from `working-truth` to `keanu`.
+> All 7 phases are complete. Current state: ALIVE diagnostic, pulse middleware, COEF span exporter,
+> OpenTelemetry tracing, memory-as-logging pipeline all shipped. See CLAUDE.md for current architecture.
+
+---
+
+# ORIGINAL PLAN (historical)
 
 ## What Exists
 

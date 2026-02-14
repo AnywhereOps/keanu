@@ -10,7 +10,7 @@
 
 ## COOL (5-15 min)
 - [ ] Add CLI tests for new commands (disagree, sync, deprioritize)
-- [ ] Add `keanu detect empathy_frustrated file.md` support (wire empathy detectors into DETECTORS list)
+- [x] Add `keanu detect empathy_frustrated file.md` support (wire empathy detectors into DETECTORS list)
 
 ## WARM (20-45 min)
 - [ ] Phase A: Watch mode (`keanu watch file.md` for continuous detection)

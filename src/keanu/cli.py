@@ -24,6 +24,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from keanu.log import info, warn
+
 
 def cmd_scan(args):
     """Scan a document through three color lenses."""
@@ -133,6 +135,7 @@ def cmd_remember(args):
         source="cli",
     )
     mid = store.remember(memory)
+    info("memory", f"remembered [{args.type}] {args.content[:60]}")
     print(f"  Remembered [{args.type}] {args.content}")
     print(f"  id: {mid} | importance: {args.importance} | tags: {', '.join(tags) or 'none'}")
 
@@ -148,8 +151,10 @@ def cmd_recall(args):
         limit=args.limit,
     )
     if not results:
+        info("memory", f"recall '{args.query or 'all'}' -> 0 results")
         print("  No memories found.")
         return
+    info("memory", f"recall '{args.query or 'all'}' -> {len(results)} results")
     print(f"\n  Recalled {len(results)} memories:\n")
     for m in results:
         score = m.get("_relevance_score", 0)
@@ -402,6 +407,120 @@ def cmd_health(args):
     print()
 
 
+COEF_DIR = Path.home() / ".keanu" / "coef"
+
+
+def _bootstrap_coef_tracing():
+    """Wire COEF span exporter into OpenTelemetry. Lazy, called once."""
+    from keanu.compress.dns import ContentDNS
+    from keanu.compress.codec import PatternRegistry
+    from keanu.compress.exporter import COEFSpanExporter, register_span_patterns
+    from keanu.log import add_exporter
+
+    dns_dir = COEF_DIR / "dns"
+    patterns_dir = COEF_DIR / "patterns"
+    dns_dir.mkdir(parents=True, exist_ok=True)
+
+    dns = ContentDNS(storage_dir=str(dns_dir))
+    registry = PatternRegistry(storage_dir=str(patterns_dir))
+    register_span_patterns(registry)
+
+    exporter = COEFSpanExporter(dns=dns, registry=registry)
+    add_exporter(exporter)
+
+
+def cmd_decode(args):
+    """Decode COEF seeds back into human-readable format."""
+    import json as _json
+    from keanu.compress.dns import ContentDNS
+    from keanu.compress.codec import PatternRegistry, COEFDecoder, Seed
+
+    dns_dir = COEF_DIR / "dns"
+    patterns_dir = COEF_DIR / "patterns"
+
+    if not dns_dir.exists():
+        print("  No COEF data found. Run some commands first to generate traces.")
+        return
+
+    dns = ContentDNS(storage_dir=str(dns_dir))
+    registry = PatternRegistry(storage_dir=str(patterns_dir))
+
+    # register span patterns so decoder can expand them
+    from keanu.compress.exporter import register_span_patterns
+    register_span_patterns(registry)
+
+    decoder = COEFDecoder(registry)
+
+    if args.ref:
+        # decode by hash, name, or prefix
+        try:
+            content = dns.resolve(args.ref)
+            # check if it's a seed compact format
+            if content.startswith("COEF::"):
+                seed = Seed.from_compact(content)
+                result = decoder.decode(seed)
+                if args.raw:
+                    print(content)
+                else:
+                    print(f"\n  Pattern: {seed.pattern_id}")
+                    print(f"  Hash:    {seed.content_hash[:16]}")
+                    print(f"  Lossless: {result.is_lossless}")
+                    print(f"\n  {result.content}\n")
+            else:
+                print(content)
+        except KeyError:
+            print(f"  Not found: {args.ref}")
+
+    elif args.last:
+        # list recent seeds from DNS
+        names = dns.names()
+        seed_names = {n: h for n, h in names.items() if n.startswith("seed:")}
+        recent = list(seed_names.items())[-args.last:]
+        if not recent:
+            print("  No seeds found.")
+            return
+        print(f"\n  Last {len(recent)} seeds:\n")
+        for name, h in recent:
+            try:
+                content = dns.resolve(name)
+                if content.startswith("COEF::"):
+                    seed = Seed.from_compact(content)
+                    result = decoder.decode(seed)
+                    if args.raw:
+                        print(f"  {content}")
+                    else:
+                        print(f"  [{seed.pattern_id}] {result.content[:120]}")
+                        print(f"    hash: {h[:16]}  lossless: {result.is_lossless}")
+                else:
+                    print(f"  [{name}] {content[:120]}")
+            except Exception as e:
+                print(f"  [{name}] (error: {e})")
+        print()
+
+    elif args.subsystem:
+        # filter by subsystem
+        names = dns.names()
+        prefix = f"span:keanu.{args.subsystem}"
+        matches = {n: h for n, h in names.items() if n.startswith(prefix)}
+        if not matches:
+            print(f"  No spans found for subsystem '{args.subsystem}'")
+            return
+        print(f"\n  {len(matches)} spans for {args.subsystem}:\n")
+        for name, h in matches.items():
+            try:
+                content = dns.resolve(name)
+                print(f"  {content[:140]}")
+            except Exception:
+                print(f"  [{name}] (unresolvable)")
+        print()
+
+    else:
+        # list all seed names
+        names = dns.names()
+        seed_names = {n: h for n, h in names.items() if n.startswith("seed:")}
+        print(f"\n  {len(seed_names)} seeds stored. Use --last N or provide a hash/name.\n")
+
+
 def cmd_todo(args):
     """Generate effort-aware TODO.md."""
     import importlib.util
@@ -551,6 +670,14 @@ def main():
     p_health.add_argument("--shared", action="store_true", help="Include shared repo")
     p_health.set_defaults(func=cmd_health)
 
+    # decode
+    p_decode = subparsers.add_parser("decode", help="Decode COEF seeds back to human-readable")
+    p_decode.add_argument("ref", nargs="?", default="", help="Hash, name, or prefix to decode")
+    p_decode.add_argument("--last", type=int, default=0, help="Show last N seeds")
+    p_decode.add_argument("--subsystem", default="", help="Filter by subsystem (memory, pulse, alive)")
+    p_decode.add_argument("--raw", action="store_true", help="Show raw COEF wire format")
+    p_decode.set_defaults(func=cmd_decode)
+
     # todo
     p_todo = subparsers.add_parser("todo", help="Generate effort-aware TODO.md")
     p_todo.add_argument("--project", help="Project root directory (default: current)")
@@ -560,6 +687,12 @@ def main():
     if not args.command:
         parser.print_help()
         sys.exit(1)
+
+    # bootstrap COEF tracing for commands that benefit from it
+    try:
+        _bootstrap_coef_tracing()
+    except Exception:
+        pass  # tracing is optional, never block the CLI
 
     args.func(args)
 

@@ -227,10 +227,48 @@ class MemberberryStore:
     def _load_config(self) -> dict:
         if CONFIG_FILE.exists():
             with open(CONFIG_FILE, "r") as f:
-                return json.load(f)
+                raw = json.load(f)
+            return self._validate_config(raw)
+        config = DEFAULT_CONFIG.copy()
         with open(CONFIG_FILE, "w") as f:
-            json.dump(DEFAULT_CONFIG, f, indent=2)
-        return DEFAULT_CONFIG.copy()
+            json.dump(config, f, indent=2)
+        self._audit_config("created", config)
+        return config
+
+    def _validate_config(self, raw: dict) -> dict:
+        """Validate config keys and value ranges. Fill missing with defaults."""
+        config = DEFAULT_CONFIG.copy()
+        changed = False
+        for key, default in DEFAULT_CONFIG.items():
+            if key in raw:
+                val = raw[key]
+                # type check
+                if isinstance(default, int) and isinstance(val, int):
+                    config[key] = max(1, val)
+                elif isinstance(default, list) and isinstance(val, list):
+                    config[key] = val
+                else:
+                    config[key] = val
+            else:
+                changed = True
+        if changed:
+            self._audit_config("defaults_applied", config)
+        return config
+
+    @staticmethod
+    def _audit_config(event: str, config: dict):
+        """Append config change to JSONL audit trail."""
+        audit_file = MEMBERBERRY_DIR / "config-audit.jsonl"
+        record = {
+            "ts": datetime.now().isoformat(),
+            "event": event,
+            "config": config,
+        }
+        try:
+            with open(audit_file, "a") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
 
     def _save_memories(self):
         clean = [{k: v for k, v in m.items() if not k.startswith("_")} for m in self.memories]
@@ -252,31 +290,73 @@ class MemberberryStore:
     # -- Memory operations --
 
     def remember(self, memory: Memory) -> str:
-        """Store a new memory. Returns the memory ID. Deduplicates by content hash."""
-        if self._is_duplicate(memory.content):
-            for m in self.memories:
-                if hashlib.sha256(m.get("content", "").encode()).hexdigest()[:16] == \
-                   hashlib.sha256(memory.content.encode()).hexdigest()[:16]:
-                    return m.get("id", memory.id)
+        """Store a new memory. Returns the memory ID.
+
+        Dedup strategy:
+        1. Fast path: exact SHA256 hash match (local)
+        2. Slow path: cosine similarity >= 0.95 via openpaw (catches paraphrases)
+        Also stores to openpaw for hybrid search availability.
+        """
+        from keanu.log import memory_span, info, debug
+
+        with memory_span("remember", content=memory.content,
+                         memory_type=memory.memory_type, tags=memory.tags):
+            # fast path: exact hash dedup
+            if self._is_duplicate(memory.content):
+                for m in self.memories:
+                    if hashlib.sha256(m.get("content", "").encode()).hexdigest()[:16] == \
+                       hashlib.sha256(memory.content.encode()).hexdigest()[:16]:
+                        debug("memory", "dedup: exact hash match", id=m.get("id", ""))
+                        return m.get("id", memory.id)
+                return memory.id
+
+            # slow path: similarity dedup via openpaw
+            try:
+                from keanu.memory.bridge import similarity_check
+                match = similarity_check(memory.content)
+                if match:
+                    debug("memory", "dedup: similarity match via openpaw")
+                    return memory.id
+            except Exception:
+                pass
+
+            self._track_content(memory.content)
+            self.memories.append(asdict(memory))
+            self._save_memories()
+            info("memory", f"remembered [{memory.memory_type}] {memory.content[:60]}",
+                 id=memory.id)
+
+            # also store in openpaw for hybrid search
+            try:
+                from keanu.memory.bridge import store_via_openpaw
+                store_via_openpaw(memory.content, memory.memory_type, memory.tags)
+            except Exception:
+                pass
+
             return memory.id
-        self._track_content(memory.content)
-        self.memories.append(asdict(memory))
-        self._save_memories()
-        return memory.id
 
     def recall(self, query: str = "", tags: list = None,
                memory_type: str = None, limit: int = None) -> list[dict]:
         """Recall via openpaw hybrid search if available, else local."""
+        from keanu.log import memory_span, info, debug
+
         limit = limit or self.config.get("max_recall", 10)
-        if query:
-            try:
-                from keanu.memory.bridge import recall_via_openpaw
-                results = recall_via_openpaw(query, max_results=limit)
-                if results:
-                    return self._convert_openpaw_results(results, memory_type)
-            except Exception:
-                pass
-        return self._local_recall(query, tags, memory_type, limit)
+        with memory_span("recall", content=query, memory_type=memory_type or "",
+                         tags=tags or []):
+            if query:
+                try:
+                    from keanu.memory.bridge import recall_via_openpaw
+                    results = recall_via_openpaw(query, max_results=limit)
+                    if results:
+                        converted = self._convert_openpaw_results(results, memory_type)
+                        info("memory", f"recall via openpaw: {len(converted)} results",
+                             query=query)
+                        return converted
+                except Exception:
+                    pass
+            results = self._local_recall(query, tags, memory_type, limit)
+            debug("memory", f"recall local: {len(results)} results", query=query or "all")
+            return results
 
     def _convert_openpaw_results(self, results: list, memory_type: str = None) -> list[dict]:
         converted = []

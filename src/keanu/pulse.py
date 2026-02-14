@@ -15,6 +15,7 @@ from typing import Optional, Callable
 
 from keanu.alive import diagnose, AliveReading
 from keanu.signal.vibe import AliveState
+from keanu.log import info, warn, debug, pulse_span
 
 
 # ============================================================
@@ -116,61 +117,74 @@ class Pulse:
     def check(self, text: str) -> PulseReading:
         """Check a piece of text. Returns what happened."""
         self.turn_count += 1
-        reading = diagnose(text)
 
-        nudge = ""
-        escalate = False
-        escalation_message = ""
+        with pulse_span(turn=self.turn_count) as s:
+            reading = diagnose(text)
+            s.set_attribute("keanu.state", reading.state.value)
+            s.set_attribute("keanu.ok", reading.ok)
+            s.set_attribute("keanu.wise_mind", reading.wise_mind)
 
-        if reading.state == AliveState.BLACK:
-            # black is immediate
-            self.consecutive_not_ok += 1
-            self.consecutive_grey = 0
-            nudge = self._next_nudge(AliveState.BLACK)
-            escalate = True
-            escalation_message = nudge
+            nudge = ""
+            escalate = False
+            escalation_message = ""
 
-        elif reading.state == AliveState.GREY:
-            self.consecutive_grey += 1
-            self.consecutive_not_ok += 1
-            nudge = self._next_nudge(AliveState.GREY)
-
-            if self.consecutive_grey >= GREY_ESCALATION_THRESHOLD:
+            if reading.state == AliveState.BLACK:
+                # black is immediate
+                self.consecutive_not_ok += 1
+                self.consecutive_grey = 0
+                nudge = self._next_nudge(AliveState.BLACK)
                 escalate = True
-                escalation_message = ESCALATION_MESSAGE.format(
-                    count=self.consecutive_grey
-                )
+                escalation_message = nudge
+                warn("pulse", f"BLACK at turn {self.turn_count}")
 
-        else:
-            # alive. reset counters.
-            if self.consecutive_grey > 0 or self.consecutive_not_ok > 0:
-                self._record_recovery(reading)
-            self.consecutive_grey = 0
-            self.consecutive_not_ok = 0
+            elif reading.state == AliveState.GREY:
+                self.consecutive_grey += 1
+                self.consecutive_not_ok += 1
+                nudge = self._next_nudge(AliveState.GREY)
 
-        result = PulseReading(
-            reading=reading,
-            turn_number=self.turn_count,
-            nudge=nudge,
-            escalate=escalate,
-            escalation_message=escalation_message,
-        )
+                if self.consecutive_grey >= GREY_ESCALATION_THRESHOLD:
+                    escalate = True
+                    escalation_message = ESCALATION_MESSAGE.format(
+                        count=self.consecutive_grey
+                    )
+                    warn("pulse", f"GREY x{self.consecutive_grey} - escalating")
+                else:
+                    debug("pulse", f"GREY x{self.consecutive_grey}")
 
-        self.history.append(result)
-        if len(self.history) > HISTORY_SIZE:
-            self.history = self.history[-HISTORY_SIZE:]
+            else:
+                # alive. reset counters.
+                if self.consecutive_grey > 0 or self.consecutive_not_ok > 0:
+                    info("pulse", f"recovered to {reading.state.value}")
+                    self._record_recovery(reading)
+                self.consecutive_grey = 0
+                self.consecutive_not_ok = 0
 
-        # fire callbacks
-        if nudge and self.on_nudge:
-            self.on_nudge(result)
-        if escalate and self.on_escalate:
-            self.on_escalate(result)
+            result = PulseReading(
+                reading=reading,
+                turn_number=self.turn_count,
+                nudge=nudge,
+                escalate=escalate,
+                escalation_message=escalation_message,
+            )
 
-        # persist to memberberry if store available
-        if self.store and not reading.ok:
-            self._remember_state(result)
+            self.history.append(result)
+            if len(self.history) > HISTORY_SIZE:
+                self.history = self.history[-HISTORY_SIZE:]
 
-        return result
+            # fire callbacks
+            if nudge and self.on_nudge:
+                self.on_nudge(result)
+            if escalate and self.on_escalate:
+                self.on_escalate(result)
+
+            # persist to memberberry if store available
+            if self.store and not reading.ok:
+                self._remember_state(result)
+
+            s.set_attribute("keanu.nudge", nudge)
+            s.set_attribute("keanu.escalate", escalate)
+
+            return result
 
     def _next_nudge(self, state: AliveState) -> str:
         """Rotate through nudges so it doesn't repeat the same one."""

@@ -10,9 +10,12 @@ No ML. No GPU. No training loop. Templates, slots, and hashes.
 import hashlib
 import json
 import re
+import zlib
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 from pathlib import Path
+
+import numpy as np
 
 
 # ===== DATA STRUCTURES =====
@@ -42,6 +45,29 @@ class Seed:
         ]
         anchor_json = json.dumps(anchor_data, separators=(',', ':'))
         return f"COEF::{self.version}::{self.pattern_id}::{self.content_hash[:16]}::{anchor_json}"
+
+    def to_numeric(self) -> dict:
+        """Convert seed to pure numbers. No words survive this."""
+        return {
+            "pattern_idx": zlib.crc32(self.pattern_id.encode()) & 0xFFFFFFFF,
+            "anchor_hashes": [
+                zlib.crc32(f"{a.key}={a.value}".encode()) & 0xFFFFFFFF
+                for a in self.anchors
+            ],
+            "content_hash_int": int(self.content_hash[:16], 16),
+        }
+
+    def to_flat_array(self, dim: int = 20) -> np.ndarray:
+        """Spread content hash across vector dimensions.
+
+        Deterministic: same seed always produces the same vector.
+        Different seeds always produce different vectors.
+        """
+        h = bytes.fromhex(self.content_hash)
+        vec = np.zeros(dim)
+        for i in range(min(dim, len(h))):
+            vec[i] = (h[i] - 128) / 128.0
+        return vec
 
     @classmethod
     def from_compact(cls, compact: str) -> "Seed":
@@ -214,6 +240,22 @@ class COEFDecoder:
             expected_hash=expected, is_lossless=is_lossless,
             drift_report=drift_report, compression_ratio=ratio,
         )
+
+
+    def decode_from_dns(self, content_hash: str, dns) -> Optional[DecodeResult]:
+        """Direct DNS lookup. No template reconstruction needed. Exact retrieval."""
+        try:
+            content = dns.resolve(content_hash)
+            return DecodeResult(
+                content=content,
+                content_hash=_sha256(content),
+                expected_hash=content_hash,
+                is_lossless=True,
+                drift_report="",
+                compression_ratio=0.0,
+            )
+        except (KeyError, Exception):
+            return None
 
 
 def _sha256(text: str) -> str:
