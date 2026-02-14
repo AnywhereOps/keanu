@@ -1,6 +1,0 @@
-{
-  "name": "effort-todo",
-  "version": "0.1.0",
-  "description": "Effort-aware TODO system. Reads cognitive energy and matches tasks to it.",
-  "hooks": "../hooks/hooks.json"
-}
