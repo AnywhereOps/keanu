@@ -91,6 +91,7 @@ def cmd_detect(args):
 
 def cmd_alive(args):
     """ALIVE-GREY-BLACK diagnostic. Text in, state out."""
+    import json as _json
     from keanu.alive import diagnose
     if args.text:
         text = args.text
@@ -102,9 +103,12 @@ def cmd_alive(args):
         text = sys.stdin.read()
 
     reading = diagnose(text)
-    print()
-    print(reading.summary())
-    print()
+    if args.json:
+        print(_json.dumps(reading.to_dict(), indent=2))
+    else:
+        print()
+        print(reading.summary())
+        print()
 
 
 def _get_store(shared=False):
@@ -463,6 +467,7 @@ def main():
     p_alive = subparsers.add_parser("alive", help="ALIVE-GREY-BLACK diagnostic")
     p_alive.add_argument("text", nargs="?", default="", help="Text to diagnose")
     p_alive.add_argument("--file", "-f", default="", help="File to diagnose")
+    p_alive.add_argument("--json", action="store_true", help="Output as JSON")
     p_alive.set_defaults(func=cmd_alive)
 
     # remember

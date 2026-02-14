@@ -15,6 +15,7 @@ from keanu.memory.memberberry import (
     Action,
 )
 from keanu.memory.disagreement import Disagreement, DisagreementTracker
+from keanu.memory.bridge import recall_via_openpaw, openpaw_available
 
 
 def _tmp_store():
@@ -275,3 +276,52 @@ class TestDisagreement:
             s = tracker.stats()
             assert s["total"] == 0
             assert s["alerts"] == []
+
+
+class TestBridge:
+    def test_recall_via_openpaw_success(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = json.dumps({
+            "results": [
+                {"score": 0.85, "path": "drew/2026-02.jsonl", "snippet": "[goal]\nship v1", "startLine": 1, "endLine": 1}
+            ]
+        })
+        with patch("keanu.memory.bridge.subprocess.run", return_value=mock_result):
+            results = recall_via_openpaw("ship")
+        assert len(results) == 1
+        assert results[0]["score"] == 0.85
+
+    def test_recall_via_openpaw_failure(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        with patch("keanu.memory.bridge.subprocess.run", return_value=mock_result):
+            results = recall_via_openpaw("ship")
+        assert results == []
+
+    def test_recall_via_openpaw_not_found(self):
+        with patch("keanu.memory.bridge.subprocess.run", side_effect=FileNotFoundError):
+            results = recall_via_openpaw("ship")
+        assert results == []
+
+    def test_openpaw_available_true(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        with patch("keanu.memory.bridge.subprocess.run", return_value=mock_result):
+            assert openpaw_available() is True
+
+    def test_openpaw_available_false(self):
+        with patch("keanu.memory.bridge.subprocess.run", side_effect=FileNotFoundError):
+            assert openpaw_available() is False
+
+    def test_recall_fallback_to_local(self, tmp_path):
+        with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
+             patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
+             patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
+             patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"):
+            store = MemberberryStore()
+            store.remember(Memory(content="ship v1", memory_type="goal", tags=["build"]))
+            with patch("keanu.memory.bridge.subprocess.run", side_effect=FileNotFoundError):
+                results = store.recall(query="ship")
+            assert len(results) == 1
+            assert results[0]["content"] == "ship v1"

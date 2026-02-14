@@ -33,6 +33,21 @@ class AliveReading:
             f"  wise mind: {self.wise_mind:.2f}",
         ] + ([f"  evidence: {'; '.join(self.evidence)}"] if self.evidence else []))
 
+    def to_dict(self) -> dict:
+        return {
+            "state": self.state.value,
+            "ok": self.ok,
+            "emotions": self.emotions,
+            "color_state": self.color_state,
+            "red_net": self.red_net,
+            "yellow_net": self.yellow_net,
+            "blue_net": self.blue_net,
+            "balance": self.balance,
+            "fullness": self.fullness,
+            "wise_mind": self.wise_mind,
+            "evidence": self.evidence,
+        }
+
 
 def diagnose(text: str) -> AliveReading:
     emotions = _get_emotions(text)

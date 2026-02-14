@@ -266,26 +266,56 @@ class MemberberryStore:
 
     def recall(self, query: str = "", tags: list = None,
                memory_type: str = None, limit: int = None) -> list[dict]:
-        """Recall relevant memories based on query, tags, or type."""
+        """Recall via openpaw hybrid search if available, else local."""
         limit = limit or self.config.get("max_recall", 10)
+        if query:
+            try:
+                from keanu.memory.bridge import recall_via_openpaw
+                results = recall_via_openpaw(query, max_results=limit)
+                if results:
+                    return self._convert_openpaw_results(results, memory_type)
+            except Exception:
+                pass
+        return self._local_recall(query, tags, memory_type, limit)
+
+    def _convert_openpaw_results(self, results: list, memory_type: str = None) -> list[dict]:
+        converted = []
+        for r in results:
+            snippet = r.get("snippet", "")
+            lines = snippet.split("\n", 2)
+            meta_line = lines[0] if len(lines) > 1 else ""
+            content = lines[-1] if lines else snippet
+            m_type = ""
+            if meta_line.startswith("[") and "]" in meta_line:
+                m_type = meta_line[1:meta_line.index("]")]
+            if memory_type and m_type and m_type != memory_type:
+                continue
+            converted.append({
+                "content": content,
+                "memory_type": m_type or "unknown",
+                "importance": 5,
+                "_relevance_score": r.get("score", 0),
+                "_source": "openpaw",
+                "path": r.get("path", ""),
+            })
+        return converted
+
+    def _local_recall(self, query: str = "", tags: list = None,
+                      memory_type: str = None, limit: int = 10) -> list[dict]:
         candidates = []
 
         for m_dict in self.memories:
-            # Strip any transient fields before hydrating
             clean = {k: v for k, v in m_dict.items() if not k.startswith("_")}
             m = Memory(**clean)
 
-            # Filter by type if specified
             if memory_type and m.memory_type != memory_type:
                 continue
 
             score = m.relevance_score(query_tags=tags, query_text=query)
             candidates.append((score, m_dict))
 
-        # Sort by relevance, highest first
         candidates.sort(key=lambda x: x[0], reverse=True)
 
-        # Update recall timestamps for returned memories
         results = []
         for score, m_dict in candidates[:limit]:
             m_dict["last_recalled"] = datetime.now().isoformat()
