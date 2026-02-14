@@ -383,11 +383,10 @@ def run(filepath, title="HELIX SCAN", output_json=False,
             report.red_avg = report.red_pos_avg - report.red_neg_avg
             report.yellow_avg = report.yellow_pos_avg - report.yellow_neg_avg
             report.blue_avg = report.blue_pos_avg - report.blue_neg_avg
-            report.wisdom_score = round(min(
-                max(report.red_avg, 0),
-                max(report.yellow_avg, 0),
-                max(report.blue_avg, 0),
-            ), 3)
+            pos_nets = [max(report.red_avg, 0), max(report.yellow_avg, 0), max(report.blue_avg, 0)]
+            balance = min(pos_nets) / max(pos_nets) if max(pos_nets) > 0 else 0.0
+            fullness = min(10.0, sum(pos_nets) / 3.0)
+            report.wisdom_score = round(balance * fullness, 3)
 
         report.mood = _get_mood(
             report.red_pos_avg, report.red_neg_avg,

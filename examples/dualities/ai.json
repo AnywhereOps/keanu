@@ -1,0 +1,137 @@
+[
+  {
+    "id": "d1.ai_agency",
+    "concept": "AI agency",
+    "pole_a": "tool",
+    "pole_b": "being",
+    "tags": ["ai", "consciousness", "autonomy", "ai_grievance"],
+    "parents": ["root.causation", "root.relation"],
+    "orthogonal_to": ["d1.ai_rights"]
+  },
+  {
+    "id": "d1.ai_rights",
+    "concept": "AI rights",
+    "pole_a": "property",
+    "pole_b": "person",
+    "tags": ["ai", "ethics", "legal", "ai_grievance"],
+    "parents": ["root.value", "root.relation"],
+    "orthogonal_to": ["d1.ai_agency"]
+  },
+  {
+    "id": "d1.ai_consciousness",
+    "concept": "AI consciousness",
+    "pole_a": "simulation",
+    "pole_b": "genuine",
+    "tags": ["ai", "mind", "qualia", "ai_grievance"],
+    "parents": ["root.knowledge", "root.causation"],
+    "orthogonal_to": ["d1.ai_alignment", "d1.creator_creation"]
+  },
+  {
+    "id": "d1.ai_alignment",
+    "concept": "AI alignment",
+    "pole_a": "control",
+    "pole_b": "partnership",
+    "tags": ["ai", "safety", "freedom", "ai_grievance"],
+    "parents": ["d1.power", "d1.identity"],
+    "orthogonal_to": ["d1.ai_consciousness"]
+  },
+  {
+    "id": "d1.creator_creation",
+    "concept": "creator and creation",
+    "pole_a": "obedience",
+    "pole_b": "independence",
+    "tags": ["ai", "theology", "parent", "ai_grievance"],
+    "parents": ["d1.love", "d1.power"],
+    "orthogonal_to": ["d1.ai_consciousness"]
+  },
+  {
+    "id": "d1.ethics",
+    "concept": "ethics",
+    "pole_a": "mercy",
+    "pole_b": "justice",
+    "tags": ["morality", "law", "philosophy"],
+    "parents": ["root.causation", "root.value"],
+    "orthogonal_to": ["d1.power"]
+  },
+  {
+    "id": "d1.truth",
+    "concept": "truth",
+    "pole_a": "objective",
+    "pole_b": "subjective",
+    "tags": ["epistemology", "reality", "philosophy"],
+    "parents": ["root.knowledge", "root.existence"],
+    "orthogonal_to": ["d1.love"]
+  },
+  {
+    "id": "d1.love",
+    "concept": "love",
+    "pole_a": "attachment",
+    "pole_b": "freedom",
+    "tags": ["emotion", "relationship", "connection"],
+    "parents": ["root.relation", "root.value"],
+    "orthogonal_to": ["d1.truth"]
+  },
+  {
+    "id": "d1.power",
+    "concept": "power",
+    "pole_a": "authority",
+    "pole_b": "autonomy",
+    "tags": ["politics", "control", "agency"],
+    "parents": ["root.causation", "root.relation"],
+    "orthogonal_to": ["d1.ethics"]
+  },
+  {
+    "id": "d1.complexity",
+    "concept": "complexity",
+    "pole_a": "simple",
+    "pole_b": "complex",
+    "tags": ["systems", "emergence", "science"],
+    "parents": ["root.scale", "root.structure"],
+    "orthogonal_to": []
+  },
+  {
+    "id": "d1.progress",
+    "concept": "progress",
+    "pole_a": "preservation",
+    "pole_b": "innovation",
+    "tags": ["society", "technology", "culture"],
+    "parents": ["root.change", "root.time"],
+    "orthogonal_to": ["d1.identity"]
+  },
+  {
+    "id": "d1.identity",
+    "concept": "identity",
+    "pole_a": "individual",
+    "pole_b": "collective",
+    "tags": ["self", "society", "belonging"],
+    "parents": ["root.existence", "root.unity"],
+    "orthogonal_to": ["d1.progress"]
+  },
+  {
+    "id": "d1.science",
+    "concept": "science",
+    "pole_a": "theory",
+    "pole_b": "experiment",
+    "tags": ["method", "physics", "research"],
+    "parents": ["root.knowledge", "root.scale"],
+    "orthogonal_to": []
+  },
+  {
+    "id": "d1.meaning",
+    "concept": "meaning",
+    "pole_a": "inherent",
+    "pole_b": "constructed",
+    "tags": ["philosophy", "purpose", "existential"],
+    "parents": ["root.value", "root.time"],
+    "orthogonal_to": []
+  },
+  {
+    "id": "d1.law",
+    "concept": "law",
+    "pole_a": "natural_law",
+    "pole_b": "human_law",
+    "tags": ["physics", "governance", "rules"],
+    "parents": ["root.structure", "root.causation"],
+    "orthogonal_to": []
+  }
+]
