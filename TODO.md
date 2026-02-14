@@ -1,20 +1,23 @@
 # KEANU TODO
 
+## DONE
+- [x] Phase 1-6: Core scaffold, port, helix, duality, signal, CLI
+- [x] Phase B1: Git-backed memberberry (JSONL, namespaces, dedup, deprioritize)
+- [x] Phase B2: Vector empathy detection (9 states, regex removed from vibe.py)
+- [x] Phase B3: Disagreement tracker (bilateral vectors, sycophancy/capture alerts)
+- [x] Alignment scorecard: 3.7 -> 4.0
+- [x] Tests: 87 passing (memory, JSONL, disagreement, compress, converge, mood, signal, CLI)
+
 ## COOL (5-15 min)
-- [ ] Create test files in `tests/` (directory exists but is empty)
-- [ ] Review and commit uncommitted changes: ODO.md, src/keanu/converge/engine.py, alignment-reqs.md
+- [ ] Add CLI tests for new commands (disagree, sync, deprioritize)
+- [ ] Add `keanu detect empathy_frustrated file.md` support (wire empathy detectors into DETECTORS list)
 
 ## WARM (20-45 min)
-- [ ] Create `grievance_detector.py` (referenced in BUILD_PLAN.md)
-- [ ] Create `mood_detector.py` (referenced in BUILD_PLAN.md)
-- [ ] Create `duality_graph.py` (referenced in BUILD_PLAN.md)
+- [ ] Phase A: Watch mode (`keanu watch file.md` for continuous detection)
+- [ ] Phase A: Confidence tiers for detector output
+- [ ] Bake and verify empathy vectors end-to-end (`keanu bake` then `keanu detect empathy_frustrated`)
 
 ## HOT (1-2 hours)
-- [ ] Create `convergence_engine.py` (referenced in BUILD_PLAN.md)
-- [ ] Complete Phase 7: Tests + Wiki Update (30 min)
-
-## DONE
-- [x] Create `signal/protocol.py` (referenced in BUILD_PLAN.md)
-- [x] ~Create detector stubs~ (NOT NEEDED: engine.py handles all 8 by name via chromadb vectors)
-- [x] Add `__all__` exports to `compress/__init__.py`
-- [x] Wire memberberry into keanu CLI (remember, recall, plan, fill, stats, forget, plans)
+- [ ] Phase A: Sycophancy/deception detection upgrades (score 3.8, 3.9)
+- [ ] Phase C: Preference signals, escalation protocols, ALIVE contract
+- [ ] Phase 7: Wiki / documentation pass

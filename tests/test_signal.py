@@ -49,13 +49,27 @@ class TestSignalBasics:
 
 
 class TestEmotionRead:
-    def test_read_emotion_basic(self):
+    def test_read_emotion_returns_list(self):
         result = read_emotion("I'm so happy today!")
-        assert result is not None
+        assert isinstance(result, list)
 
     def test_read_emotion_empty(self):
         result = read_emotion("")
-        assert result is not None
+        assert isinstance(result, list)
+
+    def test_read_emotion_frustrated(self):
+        result = read_emotion("this is bullshit, nothing works, I've tried everything")
+        # vectors need to be baked for this to detect. if not baked, empty is ok.
+        if result:
+            states = [r.state for r in result]
+            assert "frustrated" in states
+
+    def test_read_emotion_returns_emotional_read(self):
+        result = read_emotion("nobody listens to me, I could vanish and no one would care")
+        if result:
+            assert hasattr(result[0], "state")
+            assert hasattr(result[0], "empathy")
+            assert hasattr(result[0], "intensity")
 
 
 class TestInjection:

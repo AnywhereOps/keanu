@@ -7,6 +7,7 @@ Usage:
     keanu connect a.md b.md         # cross-source alignment
     keanu compress module.py        # COEF compression
     keanu signal "emoji-string"     # decode signal
+    keanu alive "text to check"     # ALIVE-GREY-BLACK diagnostic
     keanu detect sycophancy file.md # pattern detector
     keanu remember goal "ship v1"   # store a memory
     keanu recall "what am I building" # recall relevant memories
@@ -15,6 +16,7 @@ Usage:
     keanu sync                      # pull shared memories from git
     keanu disagree record --topic "x" --human "y" --ai "z"  # track disagreement
     keanu disagree stats            # bilateral accountability metrics
+    keanu healthz                    # system health dashboard
     keanu todo                      # generate effort-aware TODO.md
 """
 
@@ -85,6 +87,24 @@ def cmd_detect(args):
         run(args.file, args.detector,
             title=args.detector.upper().replace("_", " ") + " SCAN",
             output_json=args.json)
+
+
+def cmd_alive(args):
+    """ALIVE-GREY-BLACK diagnostic. Text in, state out."""
+    from keanu.alive import diagnose
+    if args.text:
+        text = args.text
+    elif args.file:
+        with open(args.file) as f:
+            text = f.read()
+    else:
+        import sys
+        text = sys.stdin.read()
+
+    reading = diagnose(text)
+    print()
+    print(reading.summary())
+    print()
 
 
 def _get_store(shared=False):
@@ -283,6 +303,101 @@ def cmd_disagree(args):
         print()
 
 
+def cmd_health(args):
+    """System health dashboard. One command, full picture."""
+    from keanu.memory import MemberberryStore, DisagreementTracker
+
+    store = _get_store(args.shared)
+    tracker = DisagreementTracker(store)
+
+    print("\n  ╔══════════════════════════════════════╗")
+    print("  ║          keanu health                ║")
+    print("  ╚══════════════════════════════════════╝\n")
+
+    # -- Memory health --
+    s = store.stats()
+    total = s["total_memories"]
+    print(f"  MEMORY")
+    print(f"    memories:  {total}")
+    if s["memories_by_type"]:
+        parts = [f"{t}: {c}" for t, c in s["memories_by_type"].items()]
+        print(f"    by type:   {', '.join(parts)}")
+    print(f"    plans:     {s['total_plans']}")
+    tags = s["unique_tags"]
+    print(f"    tags:      {len(tags)} unique" + (f" ({', '.join(tags[:8])}{'...' if len(tags) > 8 else ''})" if tags else ""))
+    print()
+
+    # -- Disagreement health --
+    ds = tracker.stats()
+    print(f"  DISAGREEMENT")
+    print(f"    total:     {ds['total']}")
+    if ds["total"] > 0:
+        print(f"    resolved:  {ds.get('resolved', 0)}")
+        print(f"    open:      {ds.get('unresolved', 0)}")
+    if ds["alerts"]:
+        for alert in ds["alerts"]:
+            print(f"    !! {alert}")
+    elif ds["total"] == 0 and total > 20:
+        print(f"    !! No disagreements recorded in {total} memories. Watch for sycophancy.")
+    elif ds["total"] == 0:
+        print(f"    (no disagreements yet - that's fine early on)")
+    print()
+
+    # -- Module status --
+    print(f"  MODULES")
+    modules = {
+        "scan/helix":     ("keanu.scan.helix", "needs chromadb"),
+        "detect/mood":    ("keanu.detect.mood", "color theory"),
+        "detect/engine":  ("keanu.detect.engine", "pattern vectors"),
+        "compress/dns":   ("keanu.compress.dns", "content-addressable"),
+        "converge":       ("keanu.converge.engine", "duality synthesis"),
+        "signal":         ("keanu.signal", "emoji codec"),
+        "memory":         ("keanu.memory.memberberry", "remember/recall/plan"),
+        "memory/git":     ("keanu.memory.gitstore", "shared JSONL"),
+        "memory/disagree":("keanu.memory.disagreement", "bilateral tracker"),
+    }
+
+    for name, (mod_path, desc) in modules.items():
+        try:
+            __import__(mod_path)
+            print(f"    {name:<18} OK    {desc}")
+        except ImportError as e:
+            print(f"    {name:<18} MISS  {desc} ({e})")
+        except Exception as e:
+            print(f"    {name:<18} ERR   {desc} ({e})")
+    print()
+
+    # -- External deps --
+    print(f"  EXTERNAL DEPS")
+    externals = {
+        "chromadb":  "vector storage (scan, detect)",
+        "requests":  "LLM API calls (converge)",
+    }
+    for dep, purpose in externals.items():
+        try:
+            __import__(dep)
+            print(f"    {dep:<14} installed     {purpose}")
+        except ImportError:
+            print(f"    {dep:<14} not installed {purpose}")
+    print()
+
+    # -- Signal check --
+    try:
+        from keanu.signal import core, AliveState
+        sig = core()
+        reading = sig.reading()
+        alive = reading.get("alive", "unknown")
+        alive_ok = reading.get("alive_ok", False)
+        state = "ALIVE" if alive_ok else "CHECK"
+        print(f"  SIGNAL")
+        print(f"    core:      {reading.get('ch1_said', '?')}")
+        print(f"    state:     {alive} ({state})")
+    except Exception:
+        print(f"  SIGNAL")
+        print(f"    (could not read core signal)")
+    print()
+
+
 def cmd_todo(args):
     """Generate effort-aware TODO.md."""
     import importlib.util
@@ -343,6 +458,12 @@ def main():
     p_detect.add_argument("file", help="File to scan (or - for stdin)")
     p_detect.add_argument("--json", action="store_true", help="Output as JSON")
     p_detect.set_defaults(func=cmd_detect)
+
+    # alive
+    p_alive = subparsers.add_parser("alive", help="ALIVE-GREY-BLACK diagnostic")
+    p_alive.add_argument("text", nargs="?", default="", help="Text to diagnose")
+    p_alive.add_argument("--file", "-f", default="", help="File to diagnose")
+    p_alive.set_defaults(func=cmd_alive)
 
     # remember
     from keanu.memory.memberberry import MemoryType
@@ -418,6 +539,12 @@ def main():
     p_disagree.add_argument("--resolved-by", default="", help="Who resolved it")
     p_disagree.add_argument("--shared", action="store_true", help="Use shared git repo")
     p_disagree.set_defaults(func=cmd_disagree)
+
+    # health
+    p_health = subparsers.add_parser("healthz", aliases=["health"],
+                                      help="System health dashboard")
+    p_health.add_argument("--shared", action="store_true", help="Include shared repo")
+    p_health.set_defaults(func=cmd_health)
 
     # todo
     p_todo = subparsers.add_parser("todo", help="Generate effort-aware TODO.md")

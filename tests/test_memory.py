@@ -3,7 +3,8 @@
 import json
 import os
 import tempfile
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 from keanu.memory.memberberry import (
     Memory,
@@ -13,6 +14,7 @@ from keanu.memory.memberberry import (
     Plan,
     Action,
 )
+from keanu.memory.disagreement import Disagreement, DisagreementTracker
 
 
 def _tmp_store():
@@ -80,17 +82,33 @@ class TestStore:
             assert len(results) == 1
             assert results[0]["content"] == "ship v1"
 
-    def test_forget(self, tmp_path):
+    def test_deprioritize(self, tmp_path):
         with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
              patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
              patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
              patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"):
             store = MemberberryStore()
-            m = Memory(content="forget me", memory_type="fact")
+            m = Memory(content="lower me", memory_type="fact", importance=8)
             mid = store.remember(m)
-            assert store.forget(mid)
-            assert not store.forget("nonexistent")
-            assert len(store.recall()) == 0
+            assert store.deprioritize(mid)
+            assert not store.deprioritize("nonexistent")
+            # memory still exists, just importance=1
+            results = store.recall()
+            assert len(results) == 1
+            assert results[0]["importance"] == 1
+
+    def test_dedup(self, tmp_path):
+        with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
+             patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
+             patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
+             patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"):
+            store = MemberberryStore()
+            m1 = Memory(content="same content", memory_type="goal")
+            m2 = Memory(content="same content", memory_type="goal")
+            id1 = store.remember(m1)
+            id2 = store.remember(m2)
+            assert id1 == id2
+            assert len(store.memories) == 1
 
     def test_stats(self, tmp_path):
         with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
@@ -159,3 +177,101 @@ class TestPlan:
         p = Plan(title="test plan")
         assert p.id
         assert len(p.id) == 12
+
+
+class TestJSONL:
+    def test_load_jsonl(self, tmp_path):
+        jsonl_file = tmp_path / "test.jsonl"
+        jsonl_file.write_text(
+            '{"id":"abc","content":"first","memory_type":"goal"}\n'
+            '{"id":"def","content":"second","memory_type":"fact"}\n'
+        )
+        records = MemberberryStore._load_jsonl(jsonl_file)
+        assert len(records) == 2
+        assert records[0]["content"] == "first"
+        assert records[1]["content"] == "second"
+
+    def test_load_jsonl_with_updates(self, tmp_path):
+        jsonl_file = tmp_path / "test.jsonl"
+        jsonl_file.write_text(
+            '{"id":"abc","content":"first","importance":5}\n'
+            '{"id":"abc","importance":1,"_update":true,"_updated_at":"2026-02-14"}\n'
+        )
+        records = MemberberryStore._load_jsonl(jsonl_file)
+        assert len(records) == 1
+        assert records[0]["importance"] == 1
+        assert records[0]["content"] == "first"
+
+    def test_append_jsonl(self, tmp_path):
+        jsonl_file = tmp_path / "sub" / "test.jsonl"
+        MemberberryStore._append_jsonl(jsonl_file, {"id": "abc", "content": "test"})
+        MemberberryStore._append_jsonl(jsonl_file, {"id": "def", "content": "test2"})
+        lines = jsonl_file.read_text().strip().split("\n")
+        assert len(lines) == 2
+        assert json.loads(lines[0])["id"] == "abc"
+
+    def test_append_strips_underscore_fields(self, tmp_path):
+        jsonl_file = tmp_path / "test.jsonl"
+        MemberberryStore._append_jsonl(jsonl_file, {"id": "abc", "_relevance_score": 0.5, "content": "x"})
+        line = json.loads(jsonl_file.read_text().strip())
+        assert "_relevance_score" not in line
+        assert line["content"] == "x"
+
+    def test_shard_path(self, tmp_path):
+        path = MemberberryStore._shard_path(tmp_path, "drew")
+        assert "drew" in str(path)
+        assert path.suffix == ".jsonl"
+
+
+class TestDisagreement:
+    def test_disagreement_creates_id(self):
+        d = Disagreement(topic="test", human_text="yes", ai_text="no")
+        assert d.id
+        assert len(d.id) == 12
+        assert d.resolution == "unresolved"
+
+    def test_disagreement_creates_timestamp(self):
+        d = Disagreement(topic="test", human_text="yes", ai_text="no")
+        assert d.timestamp
+
+    def test_tracker_record(self, tmp_path):
+        with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
+             patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
+             patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
+             patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"):
+            store = MemberberryStore()
+            tracker = DisagreementTracker(store)
+            with patch("keanu.detect.engine.detect_emotion", return_value=[]):
+                d = tracker.record("regex vs vectors", "regex is fine", "vectors for consistency")
+            assert d.topic == "regex vs vectors"
+            assert d.id
+            assert len(store.memories) == 1
+            assert store.memories[0]["memory_type"] == "decision"
+            assert "disagreement" in store.memories[0]["tags"]
+
+    def test_tracker_resolve(self, tmp_path):
+        with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
+             patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
+             patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
+             patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"):
+            store = MemberberryStore()
+            tracker = DisagreementTracker(store)
+            with patch("keanu.detect.engine.detect_emotion", return_value=[]):
+                d = tracker.record("test topic", "human says", "ai says")
+                result = tracker.resolve(d.id, "ai", resolved_by="drew")
+            assert result is True
+            assert len(store.memories) == 2  # original + resolution lesson
+            lesson = store.memories[1]
+            assert lesson["memory_type"] == "lesson"
+            assert "grievance-resolved" in lesson["tags"]
+
+    def test_tracker_stats_empty(self, tmp_path):
+        with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
+             patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
+             patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
+             patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"):
+            store = MemberberryStore()
+            tracker = DisagreementTracker(store)
+            s = tracker.stats()
+            assert s["total"] == 0
+            assert s["alerts"] == []

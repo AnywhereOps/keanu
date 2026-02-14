@@ -43,6 +43,19 @@ class TestCLIHelp:
         assert r.returncode == 0
         assert "memberberry" in r.stdout
 
+    def test_healthz(self):
+        r = _run_keanu("healthz")
+        assert r.returncode == 0
+        assert "keanu health" in r.stdout
+        assert "MEMORY" in r.stdout
+        assert "MODULES" in r.stdout
+        assert "SIGNAL" in r.stdout
+
+    def test_healthz_alias(self):
+        r = _run_keanu("health")
+        assert r.returncode == 0
+        assert "keanu health" in r.stdout
+
     def test_no_args_shows_help(self):
         r = _run_keanu()
         # exits 1 with help text
