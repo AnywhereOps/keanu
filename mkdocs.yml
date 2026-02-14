@@ -1,10 +1,10 @@
-site_name: silverado
-repo_url: https://github.com/anywhereops/silverado
-site_url: https://anywhereops.github.io/silverado
+site_name: keanu
+repo_url: https://github.com/anywhereops/keanu
+site_url: https://anywhereops.github.io/keanu
 site_description: A truck that hauls your text and tells you what's worth keeping. Scans through three color lenses (red/yellow/blue), flags the bullshit, extracts the wisdom, compresses what matters, and finds truth where opposing views collide. Tools in the truckbed. Wind at your back.
 site_author: drew-and-claude
 edit_uri: edit/main/docs/
-repo_name: anywhereops/silverado
+repo_name: anywhereops/keanu
 copyright: Maintained by <a href="https://anywhereops.com">anywhereops</a>.
 
 nav:
@@ -15,7 +15,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          paths: ["src/silverado"]
+          paths: ["src/keanu"]
 theme:
   name: material
   feature:
@@ -41,9 +41,9 @@ theme:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/anywhereops/silverado
+      link: https://github.com/anywhereops/keanu
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/silverado
+      link: https://pypi.org/project/keanu
 
 markdown_extensions:
   - toc:

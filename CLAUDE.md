@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-## Project: working-truth
+## Project: keanu
 
 A unified Python package for cognitive state detection, text compression, and duality-based reasoning. Built on Convergence Theory: reality operates on duality (fire/possibility vs ash/actuality). Every tool here maps back to that.
 
@@ -13,7 +13,7 @@ Drew's patterns: strong pattern recognition, analysis paralysis. If he's looping
 ## Package Structure
 
 ```
-working-truth/
+keanu/
 ├── pyproject.toml
 ├── README.md
 ├── CLAUDE.md                      # you are here
@@ -25,7 +25,7 @@ working-truth/
 │       ├── root.json              # 10 root dualities
 │       └── ai.json                # AI-specific derived dualities
 ├── src/
-│   └── working_truth/
+│   └── keanu/
 │       ├── __init__.py
 │       ├── scan/                  # Read text (embedding-based)
 │       │   ├── __init__.py
@@ -46,7 +46,7 @@ working-truth/
 │       ├── signal/                # Human interface (emoji compression)
 │       │   ├── __init__.py
 │       │   └── protocol.py        # emoji codec, shorthand parser
-│       └── cli.py                 # unified entry: `wt scan`, `wt converge`, etc.
+│       └── cli.py                 # unified entry: `keanu scan`, `keanu converge`, etc.
 └── tests/
 ```
 
@@ -90,38 +90,38 @@ bake (train lenses) → scan (embeddings) → detect (color theory) → compress
 
 ## Commands
 ```bash
-uv run wt scan document.md          # three-primary reading
-uv run wt bake                      # train lenses from examples
-uv run wt converge "question"       # duality synthesis
-uv run wt connect a.md b.md         # cross-source alignment
-uv run wt compress module.py        # COEF compression
-uv run wt signal "💟♡👑🤖🐕"         # decode signal
+keanu scan document.md          # three-primary reading
+keanu bake                      # train lenses from examples
+keanu converge "question"       # duality synthesis
+keanu connect a.md b.md         # cross-source alignment
+keanu compress module.py        # COEF compression
+keanu signal "💟♡👑🤖🐕"         # decode signal
 ```
 
 ## Build Status
 
 See BUILD_PLAN.md for the 7-phase plan. Current state:
 - [x] Phase 1: Scaffold
-- [ ] Phase 2: Port existing code
-- [ ] Phase 3: Three-primary helix (THE BIG ONE)
-- [ ] Phase 4: Duality library + RAG split
-- [ ] Phase 5: Signal protocol
-- [ ] Phase 6: CLI integration
+- [x] Phase 2: Port existing code
+- [x] Phase 3: Three-primary helix
+- [x] Phase 4: Duality library + RAG split
+- [x] Phase 5: Signal protocol
+- [x] Phase 6: CLI integration
 - [ ] Phase 7: Tests + wiki
 
-Phase 3 is the critical path. Quality of `lens-examples-rgb.md` determines everything.
+All code ported and integrated. Testing and documentation remain.
 
-## Existing Scripts Being Ported
+## Integration Complete
 
-These files exist and work but need integration:
-- `helix.py` → scan/helix.py (upgrade from 2 lenses to 3)
-- `bake.py` → scan/bake.py (upgrade for 3 lenses)
-- `mood_detector.py` → detect/mood.py (keep model, replace regex with helix)
-- `dns.py` → compress/dns.py (port as-is)
-- `instructions.py` → compress/instructions.py (port as-is)
-- `convergence_engine.py` → converge/engine.py (replace LLM split with RAG)
-- `connection.py` → converge/connection.py (update for 3-primary output)
-- `duality_graph.py` → converge/graph.py (port as-is)
+These components have been ported from previous implementations:
+- helix.py: 3-primary embedding scanner (red/yellow/blue)
+- bake.py: lens training with calibration
+- mood.py: color theory detector (white/black/silver/sunrise)
+- dns.py: content-addressable storage
+- instructions.py: 9-verb COEF language
+- engine.py: convergence engine with RAG-based duality splitting
+- connection.py: cross-source alignment
+- graph.py: duality graph with 10 root dualities
 
 ## Key Design Decisions Already Made
 
@@ -138,4 +138,5 @@ These files exist and work but need integration:
 - No em dashes in writing. Use commas, periods, or parentheses.
 - No disclaimers. Drew has already considered multiple perspectives.
 - Present choices (2-4 options), not open questions.
+- When Drew loops, cut it: "Move."
 - Moral framework: love > loyalty > faith > truth > safety, accuracy, helpful
