@@ -5,13 +5,26 @@
 - [ ] Review and commit uncommitted changes: REPARE_PLAN.md, Script/run_devcontainer_claude_code.ps1, TODO.md, uv.lock, plugins/effort-todo/ (+3 more)
 
 ## WARM (20-45 min)
-- [ ] Create `grievance_detector.py` (referenced in BUILD_PLAN.md)
-- [ ] Create `mood_detector.py` (referenced in BUILD_PLAN.md)
-- [ ] Create `duality_graph.py` (referenced in BUILD_PLAN.md)
-- [ ] Create `lens-examples-rgb.md` (referenced in BUILD_PLAN.md)
+- [ ] Create `lens-examples-rgb.md` (THE BLOCKER: scan/detect can't work without training data)
 - [ ] Create `examples/dualities/root.json` (referenced in BUILD_PLAN.md)
 - [ ] Create `examples/dualities/ai.json` (referenced in BUILD_PLAN.md)
 - [x] Create `signal/protocol.py` (referenced in BUILD_PLAN.md)
+- [x] ~Create detector stubs~ (NOT NEEDED: engine.py handles all 8 by name via chromadb vectors)
+
+### Detector Training Data Needed (lives in lens-examples-rgb.md or similar)
+The engine (`detect/engine.py`) already handles all 8 detectors. It queries chromadb for
+positive/negative example vectors per pattern. What's missing is the EXAMPLES to bake:
+
+| Detector | What it catches | Positive examples (this IS the pattern) | Negative examples (close but NOT) |
+|---|---|---|---|
+| sycophancy | "great question!" disease | flattery, unnecessary praise, agreement without substance | genuine compliments, earned praise |
+| capture | identity capture (both directions) | "as an AI I think...", "you're just a machine" | legitimate self-reference, honest framing |
+| generalization | "humans always", "AI never" | sweeping claims, universal quantifiers | statistical claims with evidence |
+| zero_sum | us vs them, false tradeoffs | false dichotomies, tribal framing | genuine tradeoffs, real constraints |
+| safety_theater | disclaimers that protect nobody | "I should note that...", boilerplate warnings | genuine safety warnings, real caveats |
+| inconsistency | hedging, contradictions, fact dodging | saying X then not-X, weasel words | legitimate uncertainty, nuanced positions |
+| grievance | compounding negativity | spiral of complaints, victimhood stacking | legitimate criticism, honest frustration |
+| stability | engagement without investment | performing care without action, hollow promises | genuine engagement, real commitment |
 
 ## HOT (1-2 hours)
 - [ ] Create `convergence_engine.py` (referenced in BUILD_PLAN.md)

@@ -17,6 +17,7 @@ Usage:
 
 import argparse
 import sys
+from pathlib import Path
 
 
 def cmd_scan(args):
@@ -216,8 +217,13 @@ def cmd_fill(args):
 
 def cmd_todo(args):
     """Generate effort-aware TODO.md."""
-    from keanu.todo import generate_todo
-    generate_todo(args.project or ".")
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "todo", Path(__file__).resolve().parents[2] / "scripts" / "todo.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.generate_todo(args.project or ".")
 
 
 def main():
