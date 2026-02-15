@@ -79,6 +79,9 @@ src/keanu/
         instructions.py # 9-verb instruction language
         codec.py        # pattern registry, encoder/decoder
         executor.py     # pipeline executor
+        exporter.py     # COEF span exporter (memory <-> logging)
+        stack.py        # combined codec/dns/vectors layer
+        vectors.py      # vector storage abstraction
     converge/           # Truth (duality synthesis)
         graph.py        # 10 root + derived dualities
         engine.py       # RAG split -> 3 convergence passes
@@ -88,6 +91,12 @@ src/keanu/
     memory/             # Remember (memberberry engine)
         memberberry.py  # store, recall, plan
         fill_berries.py # bulk ingestion
+        gitstore.py     # git-backed shared JSONL memory
+        disagreement.py # bilateral disagreement tracker
+        bridge.py       # openpaw hybrid search bridge
+    alive.py            # ALIVE-GREY-BLACK diagnostic
+    log.py              # structured logging + COEF span export
+    pulse.py            # pulse middleware, healthz
     cli.py              # entry point
 ```
 

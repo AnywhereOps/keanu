@@ -22,6 +22,7 @@ keanu/
 ├── TODO.md
 ├── examples/
 │   ├── lens-examples-rgb.md          # training examples for 3-primary scanner
+│   ├── reference-examples.md         # detector + empathy training data (347 examples)
 │   ├── codec_demo.py
 │   └── dualities/
 │       ├── root.json                 # 10 root dualities
@@ -32,6 +33,9 @@ keanu/
 │   └── keanu/
 │       ├── __init__.py
 │       ├── cli.py                    # unified entry: keanu scan, converge, signal, etc.
+│       ├── alive.py                  # ALIVE-GREY-BLACK diagnostic (text in, state out)
+│       ├── log.py                    # structured logging + COEF span export
+│       ├── pulse.py                  # pulse middleware (healthz dashboard internals)
 │       ├── scan/
 │       │   ├── __init__.py
 │       │   ├── helix.py              # 3-lens scanner (red/yellow/blue)
@@ -45,7 +49,10 @@ keanu/
 │       │   ├── dns.py                # content-addressable store (SHA256 barcode)
 │       │   ├── instructions.py       # 9-verb COEF instruction language
 │       │   ├── codec.py              # pattern registry, encoder/decoder
-│       │   └── executor.py           # COEF pipeline executor
+│       │   ├── executor.py           # COEF pipeline executor
+│       │   ├── exporter.py           # COEF span exporter (memory <-> logging bridge)
+│       │   ├── stack.py              # combined codec/dns/vectors layer
+│       │   └── vectors.py            # vector storage abstraction
 │       ├── converge/
 │       │   ├── __init__.py
 │       │   ├── graph.py              # duality graph, 10 roots + derived
@@ -57,8 +64,11 @@ keanu/
 │       └── memory/
 │           ├── __init__.py
 │           ├── memberberry.py        # remember/recall/plan engine
-│           └── fill_berries.py       # bulk memory ingestion
-└── tests/                            # empty (Phase 7)
+│           ├── fill_berries.py       # bulk memory ingestion
+│           ├── gitstore.py           # git-backed shared JSONL memory
+│           ├── disagreement.py       # bilateral disagreement tracker
+│           └── bridge.py             # openpaw hybrid search bridge
+└── tests/                            # 174 tests across 11 files
 ```
 
 ## CLI Commands
@@ -71,12 +81,19 @@ keanu connect a.md b.md             # cross-source alignment
 keanu compress module.py            # COEF compression
 keanu signal "emoji-string"         # decode signal (3 channels + ALIVE state)
 keanu detect sycophancy file.md     # pattern detector (8 detectors or "all")
+keanu alive "text to check"         # ALIVE-GREY-BLACK diagnostic
 keanu remember goal "ship v1"       # store a memory
 keanu recall "what am I building"   # recall relevant memories
 keanu plan "next week"              # generate plan from memories
+keanu plans                         # list all plans
 keanu fill interactive              # guided memory ingestion
 keanu stats                         # memory stats
-keanu forget <id>                   # remove a memory
+keanu deprioritize <id>             # lower memory importance (nothing dies)
+keanu sync                          # pull shared memories from git
+keanu disagree record --topic "x" --human "y" --ai "z"  # track disagreement
+keanu disagree stats                # bilateral accountability metrics
+keanu healthz                       # system health dashboard
+keanu decode --last 5               # decode COEF seeds back to readable
 keanu todo                          # scan project gaps, generate TODO.md
 ```
 
@@ -136,7 +153,9 @@ bake (train lenses) -> scan (embeddings) -> detect (color theory) -> compress/co
 ## Build Status
 
 Phases 1-6 complete. All code ported and integrated.
-- [ ] Phase 7: Tests + wiki (tests/ is empty)
+Phase B complete: git-backed memory, vector empathy, bilateral accountability.
+- [x] Tests: 174 passing across 11 files
+- [ ] Phase 7: Wiki / documentation pass
 
 ## Key Design Decisions Already Made
 
