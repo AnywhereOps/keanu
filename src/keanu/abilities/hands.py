@@ -107,6 +107,21 @@ class WriteFileAbility(Ability):
         if not _is_safe_path(path):
             return {"success": False, "result": f"Path outside project: {path}", "data": {}}
 
+        # if IDE is connected, use diff view instead of direct write
+        try:
+            from keanu.hero.ide import get_ide
+            ide = get_ide()
+            if ide:
+                abs_path = str(Path(path).resolve())
+                if ide.open_diff(abs_path, content):
+                    return {
+                        "success": True,
+                        "result": f"Opened diff view for {path} in IDE ({len(content)} chars)",
+                        "data": {"path": path, "size": len(content), "via": "ide_diff"},
+                    }
+        except ImportError:
+            pass
+
         try:
             p = Path(path)
             p.parent.mkdir(parents=True, exist_ok=True)

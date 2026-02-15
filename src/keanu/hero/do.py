@@ -49,7 +49,7 @@ class LoopResult:
 # SYSTEM PROMPT
 # ============================================================
 
-def _build_system(abilities: list[dict]) -> str:
+def _build_system(abilities: list[dict], ide_context: str = "") -> str:
     """Build the system prompt that tells the LLM what tools it has."""
 
     hands = ["read", "write", "edit", "search", "ls", "run"]
@@ -69,7 +69,7 @@ def _build_system(abilities: list[dict]) -> str:
         "  run: shell command. args: {command}",
     ]
 
-    return f"""You are keanu, an agent that solves tasks by using abilities.
+    base = f"""You are keanu, an agent that solves tasks by using abilities.
 
 You have two kinds of abilities:
 
@@ -103,6 +103,11 @@ Rules:
 - If you're stuck, say so in the answer and set done=true.
 - Be direct. No filler."""
 
+    if ide_context:
+        base += ide_context
+
+    return base
+
 
 # ============================================================
 # LOOP
@@ -119,8 +124,10 @@ class AgentLoop:
     def run(self, task: str, backend: str = "claude",
             model: str = None) -> LoopResult:
         """Run the loop on a task."""
+        from keanu.hero.ide import ide_context_string
 
-        system = _build_system(list_abilities())
+        ide_ctx = ide_context_string()
+        system = _build_system(list_abilities(), ide_context=ide_ctx)
         messages = [f"TASK: {task}"]
 
         for turn in range(self.max_turns):

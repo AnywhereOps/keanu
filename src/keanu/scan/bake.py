@@ -294,9 +294,75 @@ def bake_helix(lenses_path=None):
     print(f"  lenses baked: {', '.join(sorted(lenses))}")
 
 
-def bake(examples_path=None, lenses_path=None, detectors_only=False, helix_only=False):
-    if not helix_only:
-        bake_detectors(examples_path)
-    if not detectors_only:
-        bake_helix(lenses_path)
-    print(f"\n  done. vectors in {CHROMA_DIR}")
+def bake_behavioral_detectors(examples_path=None):
+    from keanu.compress.behavioral import BehavioralStore
+
+    if examples_path is None:
+        examples_path = DEFAULT_EXAMPLES
+
+    if not Path(examples_path).exists():
+        print(f"  {examples_path} not found. skipping detectors.")
+        return
+
+    print(f"  parsing {examples_path}...")
+    examples = parse_reference_file(examples_path)
+
+    detectors = set(e['detector'] for e in examples)
+    print(f"  found {len(examples)} examples across {len(detectors)} detectors")
+
+    store = BehavioralStore()
+    bake_examples = [
+        {"text": e["text"], "detector": e["detector"], "valence": e["valence"],
+         "source": "silverado-bootstrap-v1"}
+        for e in examples
+    ]
+
+    count = store.bake_collection("silverado", bake_examples)
+    print(f"  baked {count} detector examples (behavioral)")
+    print(f"  detectors baked: {', '.join(sorted(detectors))}")
+
+
+def bake_behavioral_helix(lenses_path=None):
+    from keanu.compress.behavioral import BehavioralStore
+
+    if lenses_path is None:
+        lenses_path = DEFAULT_LENSES
+
+    if not Path(lenses_path).exists():
+        print(f"  {lenses_path} not found. skipping helix.")
+        return
+
+    print(f"\n  parsing {lenses_path}...")
+    examples = parse_lens_file(lenses_path)
+
+    lenses = set(e['lens'] for e in examples)
+    print(f"  found {len(examples)} examples across {len(lenses)} lenses")
+
+    store = BehavioralStore()
+    bake_examples = [
+        {"text": e["text"], "lens": e["lens"], "valence": e["valence"],
+         "source": "silverado-rgb-v1"}
+        for e in examples
+    ]
+
+    count = store.bake_collection("silverado_rgb", bake_examples)
+    print(f"  baked {count} lens examples (behavioral)")
+    print(f"  lenses baked: {', '.join(sorted(lenses))}")
+
+
+def bake(examples_path=None, lenses_path=None, detectors_only=False,
+         helix_only=False, backend="chromadb"):
+    if backend in ("chromadb", "both"):
+        if not helix_only:
+            bake_detectors(examples_path)
+        if not detectors_only:
+            bake_helix(lenses_path)
+        print(f"\n  done. chromadb vectors in {CHROMA_DIR}")
+
+    if backend in ("behavioral", "both"):
+        if not helix_only:
+            bake_behavioral_detectors(examples_path)
+        if not detectors_only:
+            bake_behavioral_helix(lenses_path)
+        from keanu.compress.behavioral import _get_behavioral_dir
+        print(f"\n  done. behavioral vectors in {_get_behavioral_dir()}")

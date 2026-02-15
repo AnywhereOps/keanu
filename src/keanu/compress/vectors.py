@@ -1,11 +1,10 @@
 """vectors.py - the agent communication layer.
 
 Seeds become vectors. Vectors find seeds.
-Deterministic by default (hash-based). Swap in nomic-embed-text
-or sentence-transformers for semantic search when ready.
+Deterministic by default (hash-based). Semantic mode uses
+behavioral feature extraction (20 named dimensions, explainable).
 """
 
-import hashlib
 from dataclasses import dataclass
 
 import numpy as np
@@ -47,18 +46,18 @@ class VectorStore:
         return vec
 
     def embed_semantic(self, seed: Seed, content: str) -> np.ndarray:
-        """Semantic embedding. Content meaning, not just hash.
+        """Semantic embedding via behavioral feature extraction.
 
-        Currently uses SHA512 hash-based embedding. Replace with
-        nomic-embed-text / sentence-transformers when ready.
+        20 named dimensions, each 0-1. Every dimension is explainable.
+        Truncated or zero-padded to match store dim.
         """
-        h = hashlib.sha512(content.encode()).digest()
-        raw = np.frombuffer(h[:self.dim * 8], dtype=np.float64)
-        if len(raw) < self.dim:
-            vec = np.zeros(self.dim)
-            vec[:len(raw)] = raw
-        else:
-            vec = raw[:self.dim]
+        from .behavioral import FeatureExtractor
+        extractor = FeatureExtractor()
+        raw = extractor.extract(content)
+        # fit to store dimension
+        vec = np.zeros(self.dim)
+        n = min(self.dim, len(raw))
+        vec[:n] = raw[:n]
         norm = np.linalg.norm(vec)
         if norm > 0:
             vec = vec / norm

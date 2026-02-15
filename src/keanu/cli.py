@@ -852,8 +852,9 @@ def main():
 
     args = parser.parse_args()
     if not args.command:
-        parser.print_help()
-        sys.exit(1)
+        from keanu.hero.repl import run_repl
+        run_repl()
+        return
 
     # bootstrap COEF tracing for commands that benefit from it
     try:

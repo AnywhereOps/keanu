@@ -29,6 +29,18 @@ def _get_chroma_dir():
     return str(Path(__file__).resolve().parent.parent.parent.parent / ".chroma")
 
 
+def _get_behavioral_store():
+    """Get a BehavioralStore if available."""
+    try:
+        from keanu.compress.behavioral import BehavioralStore
+        store = BehavioralStore()
+        if store.has_collection("silverado_rgb"):
+            return store
+    except ImportError:
+        pass
+    return None
+
+
 # ── dataclasses ──────────────────────────────────────────────
 
 @dataclass
@@ -134,6 +146,17 @@ def _query_pole(collection, text, lens, valence, n=3):
     return max(0.0, 1 - min(result['distances'][0]))
 
 
+def _query_pole_behavioral(store, text, lens, valence, n=3):
+    """Query one pole via behavioral store. Same interface as _query_pole."""
+    result = store.query(
+        "silverado_rgb", text, n_results=n,
+        where={"$and": [{"lens": lens}, {"valence": valence}]},
+    )
+    if not result['distances'][0]:
+        return 0.0
+    return max(0.0, 1 - min(result['distances'][0]))
+
+
 def _query_primary(collection, text, lens, n=3):
     """
     query both poles of one primary. return PolarScore.
@@ -147,60 +170,83 @@ def _query_primary(collection, text, lens, n=3):
 # ── the scan ─────────────────────────────────────────────────
 
 def helix_scan(lines, threshold=0.45,
-               red_accel=None, yellow_accel=None, blue_accel=None):
+               red_accel=None, yellow_accel=None, blue_accel=None,
+               backend="auto"):
     """
     triple-lens scan. one embedding per line, six queries (3 primaries x 2 poles).
     returns readings, convergences, and tensions.
+
+    backend: "auto" (behavioral first, chromadb fallback), "behavioral", "chromadb"
     """
-    try:
-        import chromadb
-    except ImportError:
-        print("  pip install chromadb", file=sys.stderr)
-        return None
+    behavioral_store = None
+    collection = None
 
-    chroma_dir = _get_chroma_dir()
-    if not Path(chroma_dir).exists():
-        print("  no vectors found. run: keanu bake", file=sys.stderr)
-        return None
+    # resolve backend
+    if backend in ("auto", "behavioral"):
+        behavioral_store = _get_behavioral_store()
+        if behavioral_store:
+            print("  [behavioral] using transparent feature vectors", file=sys.stderr)
+        elif backend == "behavioral":
+            print("  no behavioral vectors found. run: keanu bake --backend behavioral", file=sys.stderr)
+            return None
 
-    client = chromadb.PersistentClient(path=chroma_dir)
+    if behavioral_store is None:
+        # fall back to chromadb
+        try:
+            import chromadb
+        except ImportError:
+            print("  pip install chromadb", file=sys.stderr)
+            return None
 
-    try:
-        collection = client.get_collection("silverado_rgb")
-    except Exception:
-        print("  collection 'silverado_rgb' not found. run: keanu bake", file=sys.stderr)
-        return None
+        chroma_dir = _get_chroma_dir()
+        if not Path(chroma_dir).exists():
+            print("  no vectors found. run: keanu bake", file=sys.stderr)
+            return None
 
-    # load calibration corrections
+        client = chromadb.PersistentClient(path=chroma_dir)
+
+        try:
+            collection = client.get_collection("silverado_rgb")
+        except Exception:
+            print("  collection 'silverado_rgb' not found. run: keanu bake", file=sys.stderr)
+            return None
+
+    # load calibration corrections (only for chromadb)
     accels = {"red": 1.0, "yellow": 1.0, "blue": 1.0}
     consumer_overrides = {
         "red": red_accel, "yellow": yellow_accel, "blue": blue_accel
     }
 
-    try:
-        cal = client.get_collection("silverado_rgb_cal")
-        cal_converged = cal.metadata.get("converged", "True") == "True"
-
-        mode = []
+    if behavioral_store:
+        # behavioral features are already balanced, no calibration needed
         for p in PRIMARIES:
             if consumer_overrides[p] is not None:
                 accels[p] = consumer_overrides[p]
-                mode.append("consumer-set")
-            else:
-                accels[p] = float(cal.metadata.get(f"{p}_correction", "1.0"))
+    else:
+        try:
+            cal = client.get_collection("silverado_rgb_cal")
+            cal_converged = cal.metadata.get("converged", "True") == "True"
 
-        if not any(consumer_overrides[p] is not None for p in PRIMARIES):
-            mode.append("auto-calibrated")
-        if not cal_converged:
-            mode.append("cal-incomplete")
+            mode = []
+            for p in PRIMARIES:
+                if consumer_overrides[p] is not None:
+                    accels[p] = consumer_overrides[p]
+                    mode.append("consumer-set")
+                else:
+                    accels[p] = float(cal.metadata.get(f"{p}_correction", "1.0"))
 
-        mode_str = ", ".join(sorted(set(mode)))
-        print(f"  [{mode_str}] R x{accels['red']:.3f}, Y x{accels['yellow']:.3f}, B x{accels['blue']:.3f}", file=sys.stderr)
+            if not any(consumer_overrides[p] is not None for p in PRIMARIES):
+                mode.append("auto-calibrated")
+            if not cal_converged:
+                mode.append("cal-incomplete")
 
-    except Exception:
-        for p in PRIMARIES:
-            accels[p] = consumer_overrides[p] if consumer_overrides[p] is not None else 1.0
-        print(f"  [raw] R x{accels['red']:.3f}, Y x{accels['yellow']:.3f}, B x{accels['blue']:.3f}", file=sys.stderr)
+            mode_str = ", ".join(sorted(set(mode)))
+            print(f"  [{mode_str}] R x{accels['red']:.3f}, Y x{accels['yellow']:.3f}, B x{accels['blue']:.3f}", file=sys.stderr)
+
+        except Exception:
+            for p in PRIMARIES:
+                accels[p] = consumer_overrides[p] if consumer_overrides[p] is not None else 1.0
+            print(f"  [raw] R x{accels['red']:.3f}, Y x{accels['yellow']:.3f}, B x{accels['blue']:.3f}", file=sys.stderr)
 
     scannable = _get_scannable(lines)
     if not scannable:
@@ -212,10 +258,18 @@ def helix_scan(lines, threshold=0.45,
     convergences = []
     tensions = []
 
+    def _qp(text, lens):
+        """Query a primary, dispatching to behavioral or chromadb."""
+        if behavioral_store:
+            pos = _query_pole_behavioral(behavioral_store, text, lens, "positive")
+            neg = _query_pole_behavioral(behavioral_store, text, lens, "negative")
+            return PolarScore(pos=pos, neg=neg, net=pos - neg)
+        return _query_primary(collection, text, lens)
+
     for line_num, text in scannable:
-        r = _query_primary(collection, text, "red")
-        y = _query_primary(collection, text, "yellow")
-        b = _query_primary(collection, text, "blue")
+        r = _qp(text, "red")
+        y = _qp(text, "yellow")
+        b = _qp(text, "blue")
 
         # apply calibration to pos scores (neg stays raw, it's the ground truth)
         r = PolarScore(

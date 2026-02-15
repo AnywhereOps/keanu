@@ -1,0 +1,139 @@
+{
+  "name": "keanu-ide-companion",
+  "displayName": "Keanu IDE Companion",
+  "description": "Enable keanu CLI with direct access to your IDE workspace.",
+  "version": "0.1.0",
+  "publisher": "anywhereops",
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anywhereops/silverado.git",
+    "directory": "vscode-ide-companion"
+  },
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "license": "LICENSE",
+  "preview": true,
+  "categories": [
+    "AI"
+  ],
+  "keywords": [
+    "keanu",
+    "keanu cli",
+    "cli",
+    "ide integration",
+    "ide companion",
+    "agentic"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Keanu",
+      "properties": {
+        "keanu.debug.logging.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable detailed logging for debugging the Keanu IDE Companion."
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "keanu-diff-editable"
+      }
+    ],
+    "commands": [
+      {
+        "command": "keanu.diff.accept",
+        "title": "Keanu: Accept Diff",
+        "icon": "$(check)"
+      },
+      {
+        "command": "keanu.diff.cancel",
+        "title": "Keanu: Close Diff Editor",
+        "icon": "$(close)"
+      },
+      {
+        "command": "keanu.run",
+        "title": "Keanu: Run"
+      },
+      {
+        "command": "keanu.showNotices",
+        "title": "Keanu: View Third-Party Notices"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "keanu.diff.accept",
+          "when": "keanu.diff.isVisible"
+        },
+        {
+          "command": "keanu.diff.cancel",
+          "when": "keanu.diff.isVisible"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "keanu.diff.accept",
+          "when": "keanu.diff.isVisible",
+          "group": "navigation"
+        },
+        {
+          "command": "keanu.diff.cancel",
+          "when": "keanu.diff.isVisible",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "keanu.diff.accept",
+        "key": "ctrl+s",
+        "when": "keanu.diff.isVisible"
+      },
+      {
+        "command": "keanu.diff.accept",
+        "key": "cmd+s",
+        "when": "keanu.diff.isVisible"
+      }
+    ]
+  },
+  "main": "./dist/extension.cjs",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:dev",
+    "build:dev": "npm run check-types && node esbuild.js",
+    "build:prod": "node esbuild.js --production",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "watch": "npm-run-all2 -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "vsce package --no-dependencies",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.99.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.3",
+    "eslint": "^9.25.1",
+    "npm-run-all2": "^8.0.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.23.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "zod": "^3.25.76"
+  }
+}

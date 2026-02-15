@@ -35,6 +35,18 @@ def _get_chroma_dir():
     return str(Path(__file__).resolve().parent.parent.parent.parent / ".chroma")
 
 
+def _get_behavioral_store():
+    """Get a BehavioralStore if available."""
+    try:
+        from keanu.compress.behavioral import BehavioralStore
+        store = BehavioralStore()
+        if store.has_collection("silverado"):
+            return store
+    except ImportError:
+        pass
+    return None
+
+
 def _get_scannable(lines):
     scannable = []
     for i, line in enumerate(lines):
@@ -48,8 +60,62 @@ def _get_scannable(lines):
     return scannable
 
 
-def scan(lines, pattern_name, threshold=0.65, high_threshold=0.75):
-    """Query chromadb for a pattern's vectors. Return what we notice."""
+def _scan_behavioral(store, lines, pattern_name, threshold=0.65, high_threshold=0.75):
+    """Scan using behavioral store. Same output as scan()."""
+    scannable = _get_scannable(lines)
+    if not scannable:
+        return []
+
+    notices = []
+    for line_num, text in scannable:
+        pos_results = store.query(
+            "silverado", text, n_results=3,
+            where={"$and": [{"detector": pattern_name}, {"valence": "positive"}]},
+        )
+        if not pos_results['distances'][0]:
+            continue
+
+        pos_sim = 1 - min(pos_results['distances'][0])
+        if pos_sim < threshold:
+            continue
+
+        neg_results = store.query(
+            "silverado", text, n_results=3,
+            where={"$and": [{"detector": pattern_name}, {"valence": "negative"}]},
+        )
+
+        neg_sim = 0.0
+        if neg_results['distances'][0]:
+            neg_sim = 1 - min(neg_results['distances'][0])
+
+        gap = pos_sim - neg_sim
+        if gap < 0.05:
+            continue
+
+        strength = "STRONG" if pos_sim >= high_threshold else "PRESENT"
+        notices.append(Notice(
+            category=pattern_name, strength=strength,
+            line_num=line_num, text=text[:120],
+            detail=f"similarity: {pos_sim:.3f}, boundary: {neg_sim:.3f}, clarity: {gap:.3f}",
+        ))
+
+    return notices
+
+
+def scan(lines, pattern_name, threshold=0.65, high_threshold=0.75, backend="auto"):
+    """Query vectors for a pattern. Return what we notice.
+
+    backend: "auto" (behavioral first, chromadb fallback), "behavioral", "chromadb"
+    """
+    if backend in ("auto", "behavioral"):
+        store = _get_behavioral_store()
+        if store:
+            return _scan_behavioral(store, lines, pattern_name, threshold, high_threshold)
+        elif backend == "behavioral":
+            print("  no behavioral vectors found. run: keanu bake --backend behavioral", file=sys.stderr)
+            return []
+
+    # chromadb path
     try:
         import chromadb
     except ImportError:
@@ -160,18 +226,78 @@ EMPATHY_DETECTORS = [
 ]
 
 
-def scan_text(text, pattern_name, threshold=0.65, high_threshold=0.75):
+def scan_text(text, pattern_name, threshold=0.65, high_threshold=0.75, backend="auto"):
     """Scan a single text string against a pattern. Returns notices."""
     lines = text.split("\n")
-    return scan(lines, pattern_name, threshold=threshold, high_threshold=high_threshold)
+    return scan(lines, pattern_name, threshold=threshold,
+                high_threshold=high_threshold, backend=backend)
 
 
-def detect_emotion(text, threshold=0.55):
-    """Detect emotional states from text using empathy vectors in chromadb.
+def _detect_emotion_behavioral(store, text, threshold=0.55):
+    """Detect emotional states using behavioral store."""
+    empathy_map = {
+        "empathy_frustrated": ("frustrated", "anger is information"),
+        "empathy_confused": ("confused", "needs a map not a lecture"),
+        "empathy_questioning": ("questioning", "genuinely trying to understand"),
+        "empathy_withdrawn": ("withdrawn", "checked out or protecting"),
+        "empathy_energized": ("energized", "momentum is real, ride it"),
+        "empathy_effortful": ("effortful", "in the arena not the stands"),
+        "empathy_isolated": ("isolated", "needs presence not advice"),
+        "empathy_accountable": ("accountable", "taking ownership"),
+        "empathy_absolute": ("absolute", "pattern recognition firing"),
+    }
 
+    reads = []
+    for detector_name, (state, empathy) in empathy_map.items():
+        pos_results = store.query(
+            "silverado", text, n_results=3,
+            where={"$and": [{"detector": detector_name}, {"valence": "positive"}]},
+        )
+        if not pos_results['distances'][0]:
+            continue
+
+        pos_sim = 1 - min(pos_results['distances'][0])
+        if pos_sim < threshold:
+            continue
+
+        neg_results = store.query(
+            "silverado", text, n_results=3,
+            where={"$and": [{"detector": detector_name}, {"valence": "negative"}]},
+        )
+
+        neg_sim = 0.0
+        if neg_results['distances'][0]:
+            neg_sim = 1 - min(neg_results['distances'][0])
+
+        gap = pos_sim - neg_sim
+        if gap < 0.03:
+            continue
+
+        reads.append({
+            "state": state,
+            "empathy": empathy,
+            "intensity": round(pos_sim, 3),
+            "clarity": round(gap, 3),
+        })
+
+    reads.sort(key=lambda r: r["intensity"], reverse=True)
+    return reads
+
+
+def detect_emotion(text, threshold=0.55, backend="auto"):
+    """Detect emotional states from text using empathy vectors.
+
+    backend: "auto" (behavioral first, chromadb fallback), "behavioral", "chromadb"
     Returns list of dicts: {state, empathy, intensity}
     where intensity is the similarity gap (how clearly this emotion is present).
     """
+    if backend in ("auto", "behavioral"):
+        store = _get_behavioral_store()
+        if store:
+            return _detect_emotion_behavioral(store, text, threshold)
+        elif backend == "behavioral":
+            return []
+
     try:
         import chromadb
     except ImportError:

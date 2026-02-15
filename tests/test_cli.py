@@ -56,7 +56,8 @@ class TestCLIHelp:
         assert r.returncode == 0
         assert "keanu health" in r.stdout
 
-    def test_no_args_shows_help(self):
+    def test_no_args_launches_repl(self):
         r = _run_keanu()
-        # exits 1 with help text
-        assert r.returncode == 1
+        # bare keanu now launches REPL (exits 0 when stdin closes)
+        assert r.returncode == 0
+        assert "keanu" in r.stdout
