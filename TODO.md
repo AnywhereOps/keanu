@@ -2,22 +2,37 @@
 
 ## DONE
 - [x] Phase 1-6: Core scaffold, port, helix, duality, signal, CLI
-- [x] Phase B1: Git-backed memberberry (JSONL, namespaces, dedup, deprioritize)
-- [x] Phase B2: Vector empathy detection (9 states, regex removed from vibe.py)
-- [x] Phase B3: Disagreement tracker (bilateral vectors, sycophancy/capture alerts)
-- [x] Alignment scorecard: 3.7 -> 4.0
-- [x] Tests: 87 passing (memory, JSONL, disagreement, compress, converge, mood, signal, CLI)
+- [x] Phase B: Git-backed memory, vector empathy, bilateral accountability
+- [x] COEF span exporter, openpaw bridge, ALIVE/pulse/healthz
+- [x] 174 tests passing across 9 files
+- [x] Docs scaffolded (index.md, modules.md, ADR-030)
 
-## COOL (5-15 min)
-- [ ] Add CLI tests for new commands (disagree, sync, deprioritize)
-- [x] Add `keanu detect empathy_frustrated file.md` support (wire empathy detectors into DETECTORS list)
+## SHIP (what gets this out the door)
 
-## WARM (20-45 min)
-- [ ] Phase A: Watch mode (`keanu watch file.md` for continuous detection)
-- [ ] Phase A: Confidence tiers for detector output
-- [ ] Bake and verify empathy vectors end-to-end (`keanu bake` then `keanu detect empathy_frustrated`)
+### P0: Standalone CLI that works end-to-end
+- [ ] First-run experience: `pip install keanu && keanu` does something useful without setup
+- [ ] Graceful degrade when chromadb isn't baked (guide user to `keanu bake`, don't just fail)
+- [ ] Converge works without API key (local-first: ollama default, claude optional)
+- [ ] Fix repo URLs in pyproject.toml (points to anywhereops/keanu, repo is anywhereops/silverado)
+- [ ] README that explains what keanu IS to someone who's never seen it
 
-## HOT (1-2 hours)
-- [ ] Phase A: Sycophancy/deception detection upgrades (score 3.8, 3.9)
+### P1: The agentic loop (feel -> write -> breathe -> cook -> explore -> synthesize -> judge)
+- [ ] `keanu feel` - read input, detect cognitive/emotional state
+- [ ] `keanu explore` - autonomous codebase/context exploration
+- [ ] `keanu synthesize` - converge on findings (already have converge engine)
+- [ ] `keanu judge` - evaluate output quality against alignment (already have detect + alive)
+- [ ] `keanu breathe` - the loop controller, paces the cycle
+- [ ] `keanu cook` - execute: write code, make changes, take action
+- [ ] Wire the loop: feel -> explore -> synthesize -> judge -> write -> feel
+
+### P2: Usable as a library
+- [ ] Clean public API (`from keanu import scan, detect, converge, remember`)
+- [ ] Openpaw as optional dependency (bridge stays subprocess-based)
+- [ ] Package on PyPI
+
+### P3: Polish
+- [ ] Watch mode (`keanu watch`)
+- [ ] Confidence tiers for detector output
+- [ ] Full docs pass (mkdocs build, API reference, usage guides)
+- [ ] Phase A: Sycophancy/deception detection upgrades
 - [ ] Phase C: Preference signals, escalation protocols, ALIVE contract
-- [ ] Phase 7: Wiki / documentation pass
