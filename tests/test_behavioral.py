@@ -391,10 +391,14 @@ class TestHelixBehavioral:
         ]
         store.bake_collection("silverado_rgb", bake_examples)
 
-        # monkey-patch the store lookup
+        # monkey-patch the wellspring tap to return our test store
         import keanu.scan.helix as helix_mod
-        original = helix_mod._get_behavioral_store
-        helix_mod._get_behavioral_store = lambda: store
+        import keanu.wellspring as wellspring_mod
+        original_tap = wellspring_mod.tap
+        wellspring_mod.tap = lambda collection: store
+        # also patch the module-level reference in helix
+        original_helix_tap = helix_mod.tap
+        helix_mod.tap = lambda collection: store
 
         try:
             lines = [
@@ -407,7 +411,8 @@ class TestHelixBehavioral:
             readings, convergences, tensions = result
             assert len(readings) > 0
         finally:
-            helix_mod._get_behavioral_store = original
+            wellspring_mod.tap = original_tap
+            helix_mod.tap = original_helix_tap
 
 
 class TestDetectBehavioral:
@@ -428,8 +433,11 @@ class TestDetectBehavioral:
         store.bake_collection("silverado", bake_examples)
 
         from keanu.detect import engine as engine_mod
-        original = engine_mod._get_behavioral_store
-        engine_mod._get_behavioral_store = lambda: store
+        import keanu.wellspring as wellspring_mod
+        original_tap = wellspring_mod.tap
+        wellspring_mod.tap = lambda collection: store
+        original_engine_tap = engine_mod.tap
+        engine_mod.tap = lambda collection: store
 
         try:
             lines = [
@@ -441,7 +449,8 @@ class TestDetectBehavioral:
             # should detect sycophancy in at least one of the first two lines
             assert len(notices) > 0
         finally:
-            engine_mod._get_behavioral_store = original
+            wellspring_mod.tap = original_tap
+            engine_mod.tap = original_engine_tap
 
 
 class TestVectorsSemantic:

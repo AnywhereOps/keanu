@@ -416,7 +416,7 @@ class TestRouter:
 
     def test_routes_to_ability(self):
         router = AbilityRouter()
-        with patch.object(router, '_call_llm') as mock_claude:
+        with patch.object(router, '_call_oracle') as mock_claude:
             result = router.route("generate todo", context={"project_root": "/tmp"})
             assert result.source == "ability"
             assert result.ability_name == "scout"
@@ -424,7 +424,7 @@ class TestRouter:
 
     def test_routes_to_claude_when_no_ability(self):
         router = AbilityRouter()
-        with patch.object(router, '_call_llm', return_value=RouteResult(
+        with patch.object(router, '_call_oracle', return_value=RouteResult(
             source="claude", response="deep answer"
         )) as mock_claude:
             result = router.route("what is the nature of truth?")

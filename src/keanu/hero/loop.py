@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from keanu.converge.graph import DualityGraph, Duality
-from keanu.converge.engine import parse_json_response
+from keanu.oracle import interpret
 from keanu.hero.feel import Feel
 from keanu.hero.breathe import breathe, TaskAssessment, DualityPair
 from keanu.log import info, warn, debug, span
@@ -165,7 +165,7 @@ class AgentResult:
 
 def _run_side_agent(pair_index: int, side: str, pole: str, concept: str,
                     question: str, feel: Feel,
-                    backend: str, model: str) -> SideResult:
+                    legend: str, model: str) -> SideResult:
     """One leaf agent: explore then write from one pole."""
     result = SideResult(
         pair_index=pair_index,
@@ -181,7 +181,7 @@ def _run_side_agent(pair_index: int, side: str, pole: str, concept: str,
             pole=pole, side=side, concept=concept, question=question
         )
         explore_result = feel.felt_call(
-            explore_prompt, GUIDANCE_SYSTEM, backend, model
+            explore_prompt, GUIDANCE_SYSTEM, legend, model
         )
         if explore_result.should_pause:
             result.error = "paused during exploration"
@@ -193,14 +193,14 @@ def _run_side_agent(pair_index: int, side: str, pole: str, concept: str,
             pole=pole, exploration=result.exploration, question=question
         )
         write_result = feel.felt_call(
-            write_prompt, GUIDANCE_SYSTEM, backend, model
+            write_prompt, GUIDANCE_SYSTEM, legend, model
         )
         if write_result.should_pause:
             result.error = "paused during writing"
             return result
 
         try:
-            parsed = parse_json_response(write_result.response)
+            parsed = interpret(write_result.response)
             result.position = parsed.get("position", "")
             result.sees = parsed.get("sees", "")
             result.misses = parsed.get("misses", "")
@@ -217,7 +217,7 @@ def _run_side_agent(pair_index: int, side: str, pole: str, concept: str,
 def _synthesize_pair(pair_index: int, pair: DualityPair,
                      side_a: SideResult, side_b: SideResult,
                      question: str, feel: Feel,
-                     backend: str, model: str) -> PairSynthesis:
+                     legend: str, model: str) -> PairSynthesis:
     """Synthesize two sides of one duality pair."""
     ps = PairSynthesis(
         pair_index=pair_index,
@@ -247,13 +247,13 @@ def _synthesize_pair(pair_index: int, pair: DualityPair,
             side_b_insight=side_b.key_insight,
             question=question,
         )
-        result = feel.felt_call(prompt, GUIDANCE_SYSTEM, backend, model)
+        result = feel.felt_call(prompt, GUIDANCE_SYSTEM, legend, model)
         if result.should_pause:
             ps.error = "paused during synthesis"
             return ps
 
         try:
-            parsed = parse_json_response(result.response)
+            parsed = interpret(result.response)
             ps.synthesis = parsed.get("synthesis", "")
             ps.a_truth = parsed.get("a_truth", "")
             ps.b_truth = parsed.get("b_truth", "")
@@ -268,14 +268,14 @@ def _synthesize_pair(pair_index: int, pair: DualityPair,
 # MAIN LOOP
 # ============================================================
 
-def run(question: str, backend: str = "ollama", model: str = None,
+def run(question: str, legend: str = "ollama", model: str = None,
         graph: DualityGraph = None, store=None,
         max_workers: int = 3) -> AgentResult:
     """The agentic loop. Breathe, explore, synthesize, commit.
 
     Args:
         question: What to explore
-        backend: "ollama" or "claude"
+        legend: "ollama" or "claude"
         model: Model name (None for default)
         graph: DualityGraph (created if None)
         store: MemberberryStore for learnings (optional)
@@ -288,7 +288,7 @@ def run(question: str, backend: str = "ollama", model: str = None,
 
     # ---- BREATHE ----
     with span("breathe", subsystem="agent"):
-        assessment = breathe(question, feel, graph, backend, model)
+        assessment = breathe(question, feel, graph, legend, model)
 
     if not assessment.accepted:
         return AgentResult(
@@ -310,14 +310,14 @@ def run(question: str, backend: str = "ollama", model: str = None,
                 # Side A: pole_a of duality a
                 fa = executor.submit(
                     _run_side_agent, i, "a", pair.a.pole_a, pair.a.concept,
-                    question, feel, backend, model
+                    question, feel, legend, model
                 )
                 futures[fa] = (i, "a")
 
                 # Side B: pole_b of duality a (exploring the OTHER pole)
                 fb = executor.submit(
                     _run_side_agent, i, "b", pair.a.pole_b, pair.a.concept,
-                    question, feel, backend, model
+                    question, feel, legend, model
                 )
                 futures[fb] = (i, "b")
 
@@ -355,7 +355,7 @@ def run(question: str, backend: str = "ollama", model: str = None,
                 continue
 
             ps = _synthesize_pair(i, pair, side_a, side_b,
-                                  question, feel, backend, model)
+                                  question, feel, legend, model)
             pair_syntheses.append(ps)
 
     # ---- FINAL SYNTHESIS ----
@@ -380,12 +380,12 @@ def run(question: str, backend: str = "ollama", model: str = None,
                 syntheses_block=syntheses_block,
             )
             final_result = feel.felt_call(
-                final_prompt, GUIDANCE_SYSTEM, backend, model
+                final_prompt, GUIDANCE_SYSTEM, legend, model
             )
 
             if not final_result.should_pause:
                 try:
-                    parsed = parse_json_response(final_result.response)
+                    parsed = interpret(final_result.response)
                     convergence = parsed.get("convergence", "")
                     one_line = parsed.get("one_line", "")
                     learnings = parsed.get("learnings", [])

@@ -164,3 +164,4 @@ import keanu.abilities.soulstone   # noqa: F401
 import keanu.abilities.inspect_ability  # noqa: F401
 import keanu.abilities.recount     # noqa: F401
 import keanu.abilities.hands       # noqa: F401
+import keanu.abilities.fuse        # noqa: F401

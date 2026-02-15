@@ -1,9 +1,14 @@
 """do.py - the general-purpose agentic loop.
 
-feel -> think -> act -> feel -> repeat.
+The loop that makes keanu an agent. It asks the oracle what to do,
+the oracle picks an ability, the ability runs, the result feeds back.
+Feel monitors every oracle response for ALIVE/GREY/BLACK.
 
-the LLM is the brain. abilities are the hands.
-feel monitors every response for ALIVE/GREY/BLACK.
+The key difference from loop.py (convergence): do.py handles any task.
+loop.py is specialized for duality exploration. do.py is the general tool.
+
+in the world: feel -> think -> act -> feel -> repeat.
+the oracle is the brain. abilities are the hands.
 the loop keeps going until the task is done or paused.
 """
 
@@ -12,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from keanu.abilities import _REGISTRY, list_abilities
+from keanu.oracle import call_oracle
 from keanu.hero.feel import Feel, FeelResult
 from keanu.log import info, warn, debug
 
@@ -22,7 +28,11 @@ from keanu.log import info, warn, debug
 
 @dataclass
 class Step:
-    """One step in the loop."""
+    """One step in the loop. Records what happened on a single turn:
+    which ability was called, what it was given, what came back.
+
+    in the world: one heartbeat of the loop.
+    """
     turn: int
     action: str          # ability name or "think" or "done"
     input_summary: str   # what was asked
@@ -32,7 +42,11 @@ class Step:
 
 @dataclass
 class LoopResult:
-    """Full result from the agentic loop."""
+    """Everything that happened during a full run of the loop.
+    Includes the final answer, all steps taken, and feel stats.
+
+    in the world: the full story of what happened when the loop ran.
+    """
     task: str
     status: str          # "done", "paused", "max_turns", "error"
     answer: str = ""
@@ -50,7 +64,14 @@ class LoopResult:
 # ============================================================
 
 def _build_system(abilities: list[dict], ide_context: str = "") -> str:
-    """Build the system prompt that tells the LLM what tools it has."""
+    """Build the system prompt that tells the oracle what abilities it has.
+
+    Lists all seeing abilities (auto-triggered) and hand abilities
+    (explicitly invoked). Includes the JSON format the oracle must
+    respond with on each turn.
+
+    in the world: the briefing before the mission starts.
+    """
 
     hands = ["read", "write", "edit", "search", "ls", "run"]
     seeing = []
@@ -114,16 +135,31 @@ Rules:
 # ============================================================
 
 class AgentLoop:
-    """The general-purpose agentic loop."""
+    """The general-purpose agentic loop.
+
+    Creates a Feel instance for monitoring cognitive state, then runs
+    a turn-based loop: ask the oracle -> parse response -> execute
+    ability -> feed result back. Stops when the oracle says done,
+    feel detects black state, or we hit max turns.
+
+    in the world: the heartbeat. feel, think, act, repeat.
+    """
 
     def __init__(self, store=None, max_turns: int = 25):
         self.feel = Feel(store=store)
         self.max_turns = max_turns
         self.steps: list[Step] = []
 
-    def run(self, task: str, backend: str = "claude",
+    def run(self, task: str, legend: str = "creator",
             model: str = None) -> LoopResult:
-        """Run the loop on a task."""
+        """Run the loop on a task.
+
+        Calls the oracle directly (not through the router) because
+        do.py handles its own ability dispatch via the JSON action field.
+        Feel.check() runs on every oracle response to monitor aliveness.
+
+        in the world: light the fire and let it burn until the task is done.
+        """
         from keanu.hero.ide import ide_context_string
 
         ide_ctx = ide_context_string()
@@ -133,12 +169,23 @@ class AgentLoop:
         for turn in range(self.max_turns):
             prompt = "\n\n".join(messages)
 
-            # think (LLM call through feel, which monitors ALIVE state)
-            result = self.feel.felt_call(
-                prompt, system=system, backend=backend, model=model,
-            )
+            # ask the oracle directly (bypasses router to avoid ability loop)
+            try:
+                response = call_oracle(prompt, system, legend=legend, model=model)
+            except ConnectionError as e:
+                warn("loop", f"oracle unreachable: {e}")
+                return LoopResult(
+                    task=task,
+                    status="paused",
+                    steps=self.steps,
+                    feel_stats=self.feel.stats(),
+                    error=str(e),
+                )
 
-            if result.should_pause:
+            # feel checks the response for aliveness
+            feel_result = self.feel.check(response)
+
+            if feel_result.should_pause:
                 warn("loop", f"paused at turn {turn}")
                 return LoopResult(
                     task=task,
@@ -148,13 +195,13 @@ class AgentLoop:
                     error="black state detected",
                 )
 
-            # parse the LLM's response
-            parsed = self._parse_response(result.response)
+            # parse the oracle's response
+            parsed = self._parse_response(response)
             if parsed is None:
                 self.steps.append(Step(
                     turn=turn, action="think",
                     input_summary="(unparseable response)",
-                    result=result.response[:200],
+                    result=response[:200],
                 ))
                 messages.append("RESULT: Your response wasn't valid JSON. Respond with the JSON format specified.")
                 continue
@@ -223,7 +270,7 @@ class AgentLoop:
             )
             self.steps.append(step)
 
-            # feed result back to LLM
+            # feed result back to the oracle
             status = "OK" if exec_result["success"] else "FAILED"
             messages.append(f"RESULT ({status}): {exec_result['result'][:2000]}")
 
@@ -237,7 +284,15 @@ class AgentLoop:
         )
 
     def _parse_response(self, response: str) -> Optional[dict]:
-        """Parse JSON from LLM response. Tolerant of markdown fences."""
+        """Parse JSON from the oracle's response.
+
+        The oracle is told to respond in JSON but sometimes wraps it in
+        markdown code fences or adds extra text. This strips all that,
+        finds the JSON object, and returns it as a dict. Returns None
+        if it can't find valid JSON.
+
+        in the world: interpret what the oracle said.
+        """
         text = response.strip()
 
         if text.startswith("```"):
@@ -263,8 +318,11 @@ class AgentLoop:
 # CONVENIENCE
 # ============================================================
 
-def run(task: str, backend: str = "claude", model: str = None,
+def run(task: str, legend: str = "creator", model: str = None,
         store=None, max_turns: int = 25) -> LoopResult:
-    """Run the agentic loop on a task."""
+    """Run the agentic loop on a task. Convenience wrapper around AgentLoop.
+
+    in the world: light the fire and see what happens.
+    """
     loop = AgentLoop(store=store, max_turns=max_turns)
-    return loop.run(task, backend=backend, model=model)
+    return loop.run(task, legend=legend, model=model)

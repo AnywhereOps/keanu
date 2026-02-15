@@ -31,38 +31,12 @@ class Report:
     score: float = 0.0
 
 
-def _get_chroma_dir():
-    return str(Path(__file__).resolve().parent.parent.parent.parent / ".chroma")
-
-
-def _get_behavioral_store():
-    """Get a BehavioralStore if available."""
-    try:
-        from keanu.compress.behavioral import BehavioralStore
-        store = BehavioralStore()
-        if store.has_collection("silverado"):
-            return store
-    except ImportError:
-        pass
-    return None
-
-
-def _get_scannable(lines):
-    scannable = []
-    for i, line in enumerate(lines):
-        s = line.strip()
-        if (len(s) < 20
-                or s.startswith(("#", "```", "import ", "from ", "def ", "class "))
-                or re.match(r'^[\s\-\|=\+\*`#>]+$', s)
-                or re.match(r'^r["\']', s)):
-            continue
-        scannable.append((i + 1, s))
-    return scannable
+from keanu.wellspring import depths, tap, draw, sift
 
 
 def _scan_behavioral(store, lines, pattern_name, threshold=0.65, high_threshold=0.75):
     """Scan using behavioral store. Same output as scan()."""
-    scannable = _get_scannable(lines)
+    scannable = sift(lines)
     if not scannable:
         return []
 
@@ -108,7 +82,7 @@ def scan(lines, pattern_name, threshold=0.65, high_threshold=0.75, backend="auto
     backend: "auto" (behavioral first, chromadb fallback), "behavioral", "chromadb"
     """
     if backend in ("auto", "behavioral"):
-        store = _get_behavioral_store()
+        store = tap("silverado")
         if store:
             return _scan_behavioral(store, lines, pattern_name, threshold, high_threshold)
         elif backend == "behavioral":
@@ -122,7 +96,7 @@ def scan(lines, pattern_name, threshold=0.65, high_threshold=0.75, backend="auto
         print("  pip install chromadb", file=sys.stderr)
         return []
 
-    chroma_dir = _get_chroma_dir()
+    chroma_dir = depths()
     if not Path(chroma_dir).exists():
         print("  no vectors found. run: keanu bake", file=sys.stderr)
         return []
@@ -135,7 +109,7 @@ def scan(lines, pattern_name, threshold=0.65, high_threshold=0.75, backend="auto
         print("  collection 'silverado' not found. run bake first.", file=sys.stderr)
         return []
 
-    scannable = _get_scannable(lines)
+    scannable = sift(lines)
     if not scannable:
         return []
 
@@ -292,7 +266,7 @@ def detect_emotion(text, threshold=0.55, backend="auto"):
     where intensity is the similarity gap (how clearly this emotion is present).
     """
     if backend in ("auto", "behavioral"):
-        store = _get_behavioral_store()
+        store = tap("silverado")
         if store:
             return _detect_emotion_behavioral(store, text, threshold)
         elif backend == "behavioral":
@@ -303,7 +277,7 @@ def detect_emotion(text, threshold=0.55, backend="auto"):
     except ImportError:
         return []
 
-    chroma_dir = _get_chroma_dir()
+    chroma_dir = depths()
     if not Path(chroma_dir).exists():
         return []
 

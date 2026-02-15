@@ -13,18 +13,20 @@ def test_repl_imports():
 
 
 def test_repl_init_defaults():
-    """REPL initializes with default backend and model."""
+    """REPL starts with the creator legend and no specific model.
+    The creator is the default AI persona (Claude today, DeepSeek tomorrow)."""
     from keanu.hero.repl import Repl
     repl = Repl()
-    assert repl.backend == "claude"
+    assert repl.legend == "creator"
     assert repl.model is None
 
 
 def test_repl_init_custom():
-    """REPL accepts custom backend and model."""
+    """REPL accepts a custom legend (AI persona) and model override.
+    The architect legend talks like Drew's partner, not a generic assistant."""
     from keanu.hero.repl import Repl
-    repl = Repl(backend="ollama", model="llama3")
-    assert repl.backend == "ollama"
+    repl = Repl(legend="architect", model="llama3")
+    assert repl.legend == "architect"
     assert repl.model == "llama3"
 
 
@@ -60,20 +62,22 @@ def test_slash_model_set():
     assert repl.model == "gpt-4"
 
 
-def test_slash_backend_set():
-    """Slash backend with valid arg changes backend."""
+def test_slash_legend_set():
+    """Switching legends changes which AI persona answers.
+    /legend architect tells the oracle to answer as the architect."""
     from keanu.hero.repl import Repl
-    repl = Repl(backend="claude")
-    repl._handle_slash("/backend ollama")
-    assert repl.backend == "ollama"
+    repl = Repl(legend="creator")
+    repl._handle_slash("/legend architect")
+    assert repl.legend == "architect"
 
 
-def test_slash_backend_invalid():
-    """Slash backend with invalid arg does not change backend."""
+def test_slash_legend_invalid():
+    """An unknown legend name is rejected, current legend stays.
+    Only registered legends (creator, friend, architect) are valid."""
     from keanu.hero.repl import Repl
-    repl = Repl(backend="claude")
-    repl._handle_slash("/backend invalid")
-    assert repl.backend == "claude"
+    repl = Repl(legend="creator")
+    repl._handle_slash("/legend invalid")
+    assert repl.legend == "creator"
 
 
 def test_slash_unknown():

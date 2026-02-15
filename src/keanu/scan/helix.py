@@ -25,20 +25,7 @@ from pathlib import Path
 PRIMARIES = ("red", "yellow", "blue")
 
 
-def _get_chroma_dir():
-    return str(Path(__file__).resolve().parent.parent.parent.parent / ".chroma")
-
-
-def _get_behavioral_store():
-    """Get a BehavioralStore if available."""
-    try:
-        from keanu.compress.behavioral import BehavioralStore
-        store = BehavioralStore()
-        if store.has_collection("silverado_rgb"):
-            return store
-    except ImportError:
-        pass
-    return None
+from keanu.wellspring import depths, tap, sift
 
 
 # ── dataclasses ──────────────────────────────────────────────
@@ -112,18 +99,6 @@ class HelixReport:
 
 # ── line filter ──────────────────────────────────────────────
 
-def _get_scannable(lines):
-    """filter to prose lines worth scanning."""
-    scannable = []
-    for i, line in enumerate(lines):
-        s = line.strip()
-        if (len(s) < 20
-                or s.startswith(("#", "```", "import ", "from ", "def ", "class "))
-                or re.match(r'^[\s\-\|=\+\*`#>]+$', s)
-                or re.match(r'^r["\']', s)):
-            continue
-        scannable.append((i + 1, s))
-    return scannable
 
 
 # ── embedding queries ────────────────────────────────────────
@@ -183,7 +158,7 @@ def helix_scan(lines, threshold=0.45,
 
     # resolve backend
     if backend in ("auto", "behavioral"):
-        behavioral_store = _get_behavioral_store()
+        behavioral_store = tap("silverado_rgb")
         if behavioral_store:
             print("  [behavioral] using transparent feature vectors", file=sys.stderr)
         elif backend == "behavioral":
@@ -198,7 +173,7 @@ def helix_scan(lines, threshold=0.45,
             print("  pip install chromadb", file=sys.stderr)
             return None
 
-        chroma_dir = _get_chroma_dir()
+        chroma_dir = depths()
         if not Path(chroma_dir).exists():
             print("  no vectors found. run: keanu bake", file=sys.stderr)
             return None
@@ -248,7 +223,7 @@ def helix_scan(lines, threshold=0.45,
                 accels[p] = consumer_overrides[p] if consumer_overrides[p] is not None else 1.0
             print(f"  [raw] R x{accels['red']:.3f}, Y x{accels['yellow']:.3f}, B x{accels['blue']:.3f}", file=sys.stderr)
 
-    scannable = _get_scannable(lines)
+    scannable = sift(lines)
     if not scannable:
         return None
 

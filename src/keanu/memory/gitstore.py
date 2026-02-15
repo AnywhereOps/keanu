@@ -26,6 +26,12 @@ from .memberberry import (
     SHARED_DIR,
 )
 
+# importance by log level. debug is background noise, error is a scar.
+LOG_IMPORTANCE = {"debug": 1, "info": 3, "warn": 5, "error": 8}
+
+# one hero for now. forge comes later.
+DEFAULT_HERO = "wanderer"
+
 
 class GitStore(MemberberryStore):
     """MemberberryStore + git. Reads from all namespaces, writes to one."""
@@ -34,6 +40,9 @@ class GitStore(MemberberryStore):
         super().__init__()
         self.namespace = namespace
         self.repo_dir = repo_dir or SHARED_DIR
+        self._session_hero = DEFAULT_HERO
+        self._session_started = datetime.now().isoformat()
+        self._log_count = 0
         self._ensure_repo()
         self._sync()
         self._shared_memories: list[dict] = self._load_all_shared()
@@ -175,3 +184,36 @@ class GitStore(MemberberryStore):
         local["shared_by_type"] = shared_type_counts
         local["namespaces"] = sorted(namespaces)
         return local
+
+    # -- Ledger (log sink) --
+
+    def _log_shard_path(self) -> Path:
+        """Where log entries go. Separate from memory shards so volume doesn't bloat recall."""
+        month = datetime.now().strftime("%Y-%m")
+        return self.repo_dir / self.namespace / "logs" / f"{month}.jsonl"
+
+    def append_log(self, subsystem: str, level: str, message: str, attrs: dict = None):
+        """Fast path for log entries. Append-only, no dedup, no git commit.
+        Call flush() when the session ends."""
+        entry = {
+            "content": message,
+            "memory_type": "log",
+            "tags": [subsystem, level],
+            "importance": LOG_IMPORTANCE.get(level, 3),
+            "source": "log",
+            "context": f"{subsystem}.{level}",
+            "created_at": datetime.now().isoformat(),
+            "id": f"{subsystem}-{datetime.now().strftime('%H%M%S%f')[:10]}",
+            "session_hero": self._session_hero,
+            "session_started": self._session_started,
+        }
+        if attrs:
+            entry["attrs"] = attrs
+        self._append_jsonl(self._log_shard_path(), entry)
+        self._log_count += 1
+
+    def flush(self):
+        """Batch commit all buffered log entries. One commit per session, not one per line."""
+        if self._log_count > 0:
+            self._commit_and_push(f"log: {self._session_hero} ({self._log_count} entries)")
+            self._log_count = 0

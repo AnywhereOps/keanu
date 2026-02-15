@@ -1,7 +1,10 @@
 """repl.py - interactive terminal for keanu.
 
-type a task, get it done. slash commands for control.
-rich handles the colors and spinners.
+The main way humans interact with keanu. Type a task, the agent loop runs,
+you see the result. Slash commands for switching legends, models, listing
+abilities.
+
+in the world: the front door. type a task, get it done.
 """
 
 import sys
@@ -18,7 +21,7 @@ from keanu.log import info
 console = Console()
 
 BANNER = r"""
-  [bold green]🌴 keanu[/bold green]
+  [bold green]keanu[/bold green]
   type a task, or /help
 """
 
@@ -26,7 +29,7 @@ HELP_TEXT = """
   [bold]/help[/bold]              show this
   [bold]/abilities[/bold]         list registered abilities
   [bold]/model[/bold] [dim][name][/dim]     show or switch model
-  [bold]/backend[/bold] [dim][name][/dim]   show or switch backend (ollama|claude)
+  [bold]/legend[/bold] [dim][name][/dim]    show or switch legend (creator|friend|architect)
   [bold]/quit[/bold]              exit
 """
 
@@ -46,8 +49,8 @@ def _print_step(step: Step):
 class Repl:
     """Interactive keanu terminal."""
 
-    def __init__(self, backend="claude", model=None):
-        self.backend = backend
+    def __init__(self, legend="creator", model=None):
+        self.legend = legend
         self.model = model
         self.store = None
         try:
@@ -105,14 +108,17 @@ class Repl:
             else:
                 console.print(f"  model: [green]{self.model or 'default'}[/green]")
 
-        elif command == "/backend":
-            if arg and arg in ("ollama", "claude"):
-                self.backend = arg
-                console.print(f"  backend -> [green]{arg}[/green]")
-            elif arg:
-                console.print("  [red]unknown backend[/red] (ollama | claude)")
+        elif command == "/legend":
+            if arg:
+                from keanu.legends import list_legends
+                available = list_legends()
+                if arg in available:
+                    self.legend = arg
+                    console.print(f"  legend -> [green]{arg}[/green]")
+                else:
+                    console.print(f"  [red]unknown legend[/red] ({' | '.join(available)})")
             else:
-                console.print(f"  backend: [green]{self.backend}[/green]")
+                console.print(f"  legend: [green]{self.legend}[/green]")
 
         else:
             console.print(f"  [red]unknown command:[/red] {command}")
@@ -125,10 +131,9 @@ class Repl:
         info("repl", f"task: {task[:80]}")
 
         loop = AgentLoop(store=self.store, max_turns=25)
-        prev_step_count = 0
 
         with console.status("[green]thinking...", spinner="dots"):
-            result = loop.run(task, backend=self.backend, model=self.model)
+            result = loop.run(task, legend=self.legend, model=self.model)
 
         # print steps
         for step in result.steps:
@@ -171,7 +176,7 @@ class Repl:
         console.print()
 
 
-def run_repl(backend="claude", model=None):
+def run_repl(legend="creator", model=None):
     """Entry point for the REPL."""
-    repl = Repl(backend=backend, model=model)
+    repl = Repl(legend=legend, model=model)
     repl.run()

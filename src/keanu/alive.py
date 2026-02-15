@@ -132,17 +132,10 @@ def _get_emotions(text: str) -> list:
 def _get_color(text: str) -> dict:
     empty = {"state": "flat", "red_net": 0, "yellow_net": 0, "blue_net": 0,
              "balance": 0, "fullness": 0, "wise_mind": 0}
-    try:
-        import chromadb
-        from pathlib import Path
-    except ImportError:
-        return empty
 
-    chroma_dir = str(Path(__file__).resolve().parent.parent.parent / ".chroma")
-    try:
-        client = chromadb.PersistentClient(path=chroma_dir)
-        collection = client.get_collection("silverado_rgb")
-    except Exception:
+    from keanu.wellspring import draw
+    collection = draw("silverado_rgb")
+    if collection is None:
         return empty
 
     from keanu.scan.helix import _query_primary

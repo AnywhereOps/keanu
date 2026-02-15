@@ -24,6 +24,9 @@ import argparse
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from keanu.log import info, warn
 
 
@@ -44,7 +47,7 @@ def cmd_bake(args):
 def cmd_converge(args):
     """Run duality convergence on a question."""
     from keanu.converge.engine import run
-    run(args.question, backend=args.backend, model=args.model)
+    run(args.question, legend=args.legend, model=args.model)
 
 
 def cmd_connect(args):
@@ -546,6 +549,45 @@ def cmd_abilities(args):
         print()
 
 
+def cmd_forge(args):
+    """Scaffold a new ability or show what's missing."""
+    if args.misses:
+        from keanu.abilities.forge import suggest_from_misses
+        from keanu.abilities.miss_tracker import get_misses
+        misses = get_misses(limit=50)
+        if not misses:
+            print("\n  No router misses recorded yet. Use the agent loop first.\n")
+            return
+        suggestions = suggest_from_misses(limit=50)
+        print(f"\n  Router misses (last {len(misses)}):\n")
+        for s in suggestions[:10]:
+            print(f"    {s['count']:>3}x  \"{s['word']}\" ({s['pct']}%)")
+        print()
+        return
+
+    if not args.name:
+        print("Usage: keanu forge <name> --desc '...' --keywords 'a,b,c'")
+        print("       keanu forge --misses")
+        return
+
+    from keanu.abilities.forge import forge_ability
+    keywords = [k.strip() for k in args.keywords.split(",") if k.strip()] if args.keywords else [args.name]
+    result = forge_ability(args.name, args.desc or args.name, keywords)
+
+    if "error" in result:
+        print(f"\n  Error: {result['error']}\n")
+        return
+
+    print(f"\n  Created:")
+    print(f"    {result['ability_file']}")
+    print(f"    {result['test_file']}")
+    print(f"\n  Next:")
+    print(f"    1. Fill in execute() in {result['name']}.py")
+    print(f"    2. Add import to abilities/__init__.py")
+    print(f"    3. pytest tests/test_{result['name']}_ability.py")
+    print()
+
+
 def cmd_do(args):
     """Run the general-purpose agentic loop on a task."""
     from keanu.hero.do import run as do_run
@@ -560,7 +602,7 @@ def cmd_do(args):
 
     result = do_run(
         task=args.task,
-        backend=args.backend,
+        legend=args.legend,
         model=args.model,
         store=store,
         max_turns=args.max_turns,
@@ -622,7 +664,7 @@ def cmd_agent(args):
     graph = DualityGraph()
     result = agent_run(
         question=args.question,
-        backend=args.backend,
+        legend=args.legend,
         model=args.model,
         graph=graph,
         store=store,
@@ -691,7 +733,8 @@ def main():
     # converge
     p_converge = subparsers.add_parser("converge", help="Duality convergence on a question")
     p_converge.add_argument("question", help="Question to converge on")
-    p_converge.add_argument("--backend", "-b", choices=["ollama", "claude"], default="ollama", help="LLM backend")
+    p_converge.add_argument("--legend", "-l", default="creator",
+                            help="Which legend answers (default: creator)")
     p_converge.add_argument("--model", "-m", default=None, help="Model name")
     p_converge.set_defaults(func=cmd_converge)
 
@@ -821,15 +864,23 @@ def main():
     p_todo.add_argument("--project", help="Project root directory (default: current)")
     p_todo.set_defaults(func=cmd_todo)
 
-    # agent
+    # abilities
     p_abilities = subparsers.add_parser("abilities", help="List registered abilities")
     p_abilities.set_defaults(func=cmd_abilities)
+
+    # forge
+    p_forge = subparsers.add_parser("forge", help="Scaffold a new ability or show misses")
+    p_forge.add_argument("name", nargs="?", default="", help="Ability name to create")
+    p_forge.add_argument("--desc", default="", help="Ability description")
+    p_forge.add_argument("--keywords", default="", help="Comma-separated trigger keywords")
+    p_forge.add_argument("--misses", action="store_true", help="Show router miss patterns")
+    p_forge.set_defaults(func=cmd_forge)
 
     # do
     p_do = subparsers.add_parser("do", help="General-purpose agentic loop")
     p_do.add_argument("task", help="Task to accomplish")
-    p_do.add_argument("--backend", "-b", choices=["ollama", "claude"],
-                      default="claude", help="LLM backend (default: claude)")
+    p_do.add_argument("--legend", "-l", default="creator",
+                      help="Which legend answers (default: creator)")
     p_do.add_argument("--model", "-m", default=None, help="Model name")
     p_do.add_argument("--max-turns", type=int, default=25,
                       help="Max turns before stopping (default: 25)")
@@ -841,8 +892,8 @@ def main():
 
     p_agent = subparsers.add_parser("agent", help="Agentic convergence loop")
     p_agent.add_argument("question", help="Question to explore")
-    p_agent.add_argument("--backend", "-b", choices=["ollama", "claude"],
-                         default="ollama", help="LLM backend")
+    p_agent.add_argument("--legend", "-l", default="creator",
+                         help="Which legend answers (default: creator)")
     p_agent.add_argument("--model", "-m", default=None, help="Model name")
     p_agent.add_argument("--workers", "-w", type=int, default=3,
                          help="Parallel leaf agents (default: 3)")

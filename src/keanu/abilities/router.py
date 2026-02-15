@@ -33,8 +33,10 @@ class AbilityRouter:
 
     def route(self, prompt: str, system: str = "",
               context: dict = None,
-              backend: str = "ollama", model: str = None) -> RouteResult:
-        """Route a prompt. Try abilities first, fall back to LLM."""
+              legend: str = "creator", model: str = None) -> RouteResult:
+        """Route a prompt. Try abilities first, fall back to the oracle."""
+        use_legend = legend
+
         ab, confidence = find_ability(prompt, context, self.threshold)
 
         if ab is not None:
@@ -51,19 +53,21 @@ class AbilityRouter:
                         data=result.get("data", {}),
                     )
                 else:
-                    info("router", f"ability {ab.name} failed, routing to llm")
+                    info("router", f"ability {ab.name} failed, routing to oracle")
             except Exception as e:
-                info("router", f"ability {ab.name} errored: {e}, routing to llm")
+                info("router", f"ability {ab.name} errored: {e}, routing to oracle")
 
-        debug("router", f"no ability matched (best: {confidence:.2f}), routing to llm")
-        return self._call_llm(prompt, system, backend, model)
+        debug("router", f"no ability matched (best: {confidence:.2f}), routing to oracle")
+        from keanu.abilities.miss_tracker import log_miss
+        log_miss(prompt, confidence)
+        return self._call_oracle(prompt, system, use_legend, model)
 
-    def _call_llm(self, prompt: str, system: str,
-                  backend: str = "ollama", model: str = None) -> RouteResult:
-        """Fall back to LLM (ollama or claude, whatever was requested)."""
-        from keanu.converge.engine import call_llm
+    def _call_oracle(self, prompt: str, system: str,
+                     legend: str = "creator", model: str = None) -> RouteResult:
+        """Fall back to the oracle when no ability matches."""
+        from keanu.oracle import call_oracle
         self.claude_hits += 1
-        response = call_llm(prompt, system, backend=backend, model=model)
+        response = call_oracle(prompt, system, legend=legend, model=model)
         return RouteResult(source="claude", response=response)
 
     def stats(self) -> dict:

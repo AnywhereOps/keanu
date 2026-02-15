@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import List, Tuple, Optional
 
 from keanu.converge.graph import DualityGraph, Duality
-from keanu.converge.engine import parse_json_response
+from keanu.oracle import interpret
 from keanu.log import info, warn, debug
 
 
@@ -110,7 +110,7 @@ def find_top_pairs(query: str, graph: DualityGraph,
 
 
 def breathe(question: str, feel, graph: DualityGraph,
-            backend: str = "ollama", model: str = None) -> TaskAssessment:
+            legend: str = "ollama", model: str = None) -> TaskAssessment:
     """Breathe before working. Understand the task, find dualities, decide.
 
     Returns TaskAssessment with accepted=True if we should proceed.
@@ -118,7 +118,7 @@ def breathe(question: str, feel, graph: DualityGraph,
     """
     # Step 1: Understand the task via LLM
     prompt = UNDERSTAND_PROMPT.format(question=question)
-    result = feel.felt_call(prompt, UNDERSTAND_SYSTEM, backend, model)
+    result = feel.felt_call(prompt, UNDERSTAND_SYSTEM, legend, model)
 
     if result.should_pause:
         warn("breathe", "paused during task understanding")
@@ -134,7 +134,7 @@ def breathe(question: str, feel, graph: DualityGraph,
     concerns = []
 
     try:
-        parsed = parse_json_response(result.response)
+        parsed = interpret(result.response)
         understanding = parsed.get("understanding", "")
         deliverables = parsed.get("deliverables", [])
         concerns = parsed.get("concerns", [])

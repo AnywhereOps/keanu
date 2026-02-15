@@ -43,7 +43,7 @@ class Feel:
 
     Usage:
         feel = Feel()
-        result = feel.felt_call("what should I do?", backend="ollama")
+        result = feel.felt_call("what should I do?", legend="ollama")
         if result.should_breathe:
             # the response was grey, breath was injected
             pass
@@ -90,7 +90,7 @@ class Feel:
                 should_pause=should_pause,
             )
 
-    def felt_call(self, prompt, system="", backend="ollama", model=None,
+    def felt_call(self, prompt, system="", legend="ollama", model=None,
                   breath_prefix="") -> FeelResult:
         """Call ability or LLM, then check the response. Thread-safe.
 
@@ -101,7 +101,7 @@ class Feel:
         # try abilities first (ash: deterministic, no pulse check needed)
         try:
             route_result = self._router.route(
-                prompt, system, backend=backend, model=model)
+                prompt, system, legend=legend, model=model)
         except ConnectionError as e:
             return FeelResult(
                 response="",
@@ -122,12 +122,12 @@ class Feel:
 
         # if grey and we haven't already retried, try once with breath
         if result.should_breathe and not breath_prefix:
-            from keanu.converge.engine import call_llm
+            from keanu.oracle import call_oracle
             breath = result.breath_injection
             info("feel", f"re-calling with breath: {breath[:40]}")
             retried_prompt = f"[{breath}]\n\n{prompt}"
             try:
-                retried_response = call_llm(retried_prompt, system, backend, model)
+                retried_response = call_oracle(retried_prompt, system, legend, model)
             except ConnectionError:
                 return result  # return original grey result
             retried_result = self.check(retried_response)

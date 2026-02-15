@@ -258,8 +258,7 @@ class COEFDecoder:
             return None
 
 
-def _sha256(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+from keanu.compress.dns import sha256 as _sha256
 
 
 # ===== BUILT-IN PATTERNS =====

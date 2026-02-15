@@ -11,16 +11,17 @@ from keanu.hero.do import AgentLoop, LoopResult, Step, _build_system, run
 # HELPERS
 # ============================================================
 
-def make_feel_result(response, should_pause=False):
-    """Build a mock FeelResult."""
+def make_feel_check_result(response, should_pause=False):
+    """Build a mock result from feel.check()."""
     mock = MagicMock()
     mock.response = response
     mock.should_pause = should_pause
+    mock.should_breathe = False
     return mock
 
 
 def json_response(thinking="ok", action="none", args=None, done=False, answer=""):
-    """Build a JSON string like the LLM would return."""
+    """Build a JSON string like the oracle would return."""
     d = {"thinking": thinking, "action": action, "args": args or {}, "done": done}
     if answer:
         d["answer"] = answer
@@ -91,13 +92,15 @@ class TestParseResponse:
 
 class TestAgentLoopRun:
 
+    @patch("keanu.hero.do.call_oracle")
     @patch("keanu.hero.do.Feel")
-    def test_done_on_first_turn(self, MockFeel):
-        loop = AgentLoop()
-        loop.feel.felt_call.return_value = make_feel_result(
+    def test_done_on_first_turn(self, MockFeel, mock_oracle):
+        mock_oracle.return_value = json_response(thinking="easy", done=True, answer="42")
+        MockFeel.return_value.check.return_value = make_feel_check_result(
             json_response(thinking="easy", done=True, answer="42")
         )
 
+        loop = AgentLoop()
         result = loop.run("what is 6*7?")
 
         assert result.ok
@@ -106,42 +109,48 @@ class TestAgentLoopRun:
         assert len(result.steps) == 1
         assert result.steps[0].action == "done"
 
+    @patch("keanu.hero.do.call_oracle")
     @patch("keanu.hero.do.Feel")
-    def test_pause_on_black(self, MockFeel):
-        loop = AgentLoop()
-        loop.feel.felt_call.return_value = make_feel_result(
+    def test_pause_on_black(self, MockFeel, mock_oracle):
+        mock_oracle.return_value = "something grey"
+        MockFeel.return_value.check.return_value = make_feel_check_result(
             "", should_pause=True
         )
 
+        loop = AgentLoop()
         result = loop.run("do something")
 
         assert not result.ok
         assert result.status == "paused"
         assert "black" in result.error.lower()
 
+    @patch("keanu.hero.do.call_oracle")
     @patch("keanu.hero.do.Feel")
-    def test_max_turns(self, MockFeel):
-        loop = AgentLoop(max_turns=3)
-        # always return "think" with no action
-        loop.feel.felt_call.return_value = make_feel_result(
+    def test_max_turns(self, MockFeel, mock_oracle):
+        mock_oracle.return_value = json_response(thinking="hmm", action="think")
+        MockFeel.return_value.check.return_value = make_feel_check_result(
             json_response(thinking="hmm", action="think")
         )
 
+        loop = AgentLoop(max_turns=3)
         result = loop.run("impossible task")
 
         assert result.status == "max_turns"
         assert len(result.steps) == 3
 
+    @patch("keanu.hero.do.call_oracle")
     @patch("keanu.hero.do.Feel")
-    def test_unknown_ability(self, MockFeel):
-        loop = AgentLoop()
-        # first call: try a fake ability
-        # second call: done
-        loop.feel.felt_call.side_effect = [
-            make_feel_result(json_response(action="fireball", args={"target": "bug"})),
-            make_feel_result(json_response(done=True, answer="gave up")),
+    def test_unknown_ability(self, MockFeel, mock_oracle):
+        responses = [
+            json_response(action="fireball", args={"target": "bug"}),
+            json_response(done=True, answer="gave up"),
+        ]
+        mock_oracle.side_effect = responses
+        MockFeel.return_value.check.side_effect = [
+            make_feel_check_result(r) for r in responses
         ]
 
+        loop = AgentLoop()
         result = loop.run("cast fireball")
 
         assert result.ok
@@ -150,9 +159,10 @@ class TestAgentLoopRun:
         assert not result.steps[0].ok
         assert "unknown" in result.steps[0].result.lower()
 
+    @patch("keanu.hero.do.call_oracle")
     @patch("keanu.hero.do.Feel")
     @patch("keanu.hero.do._REGISTRY")
-    def test_ability_execution(self, mock_registry, MockFeel):
+    def test_ability_execution(self, mock_registry, MockFeel, mock_oracle):
         mock_ab = MagicMock()
         mock_ab.execute.return_value = {
             "success": True,
@@ -161,12 +171,16 @@ class TestAgentLoopRun:
         }
         mock_registry.get.return_value = mock_ab
 
-        loop = AgentLoop()
-        loop.feel.felt_call.side_effect = [
-            make_feel_result(json_response(action="search", args={"pattern": "*.py"})),
-            make_feel_result(json_response(done=True, answer="found them")),
+        responses = [
+            json_response(action="search", args={"pattern": "*.py"}),
+            json_response(done=True, answer="found them"),
+        ]
+        mock_oracle.side_effect = responses
+        MockFeel.return_value.check.side_effect = [
+            make_feel_check_result(r) for r in responses
         ]
 
+        loop = AgentLoop()
         result = loop.run("find python files")
 
         assert result.ok
@@ -174,33 +188,43 @@ class TestAgentLoopRun:
         assert result.steps[0].ok
         assert "3 files" in result.steps[0].result
 
+    @patch("keanu.hero.do.call_oracle")
     @patch("keanu.hero.do.Feel")
     @patch("keanu.hero.do._REGISTRY")
-    def test_ability_exception(self, mock_registry, MockFeel):
+    def test_ability_exception(self, mock_registry, MockFeel, mock_oracle):
         mock_ab = MagicMock()
         mock_ab.execute.side_effect = RuntimeError("disk full")
         mock_registry.get.return_value = mock_ab
 
-        loop = AgentLoop()
-        loop.feel.felt_call.side_effect = [
-            make_feel_result(json_response(action="write", args={"file_path": "x"})),
-            make_feel_result(json_response(done=True, answer="failed")),
+        responses = [
+            json_response(action="write", args={"file_path": "x"}),
+            json_response(done=True, answer="failed"),
+        ]
+        mock_oracle.side_effect = responses
+        MockFeel.return_value.check.side_effect = [
+            make_feel_check_result(r) for r in responses
         ]
 
+        loop = AgentLoop()
         result = loop.run("write a file")
 
         assert result.steps[0].action == "write"
         assert not result.steps[0].ok
         assert "disk full" in result.steps[0].result
 
+    @patch("keanu.hero.do.call_oracle")
     @patch("keanu.hero.do.Feel")
-    def test_unparseable_response_retries(self, MockFeel):
-        loop = AgentLoop(max_turns=3)
-        loop.feel.felt_call.side_effect = [
-            make_feel_result("this is not json"),
-            make_feel_result(json_response(done=True, answer="got it")),
+    def test_unparseable_response_retries(self, MockFeel, mock_oracle):
+        responses = [
+            "this is not json",
+            json_response(done=True, answer="got it"),
+        ]
+        mock_oracle.side_effect = responses
+        MockFeel.return_value.check.side_effect = [
+            make_feel_check_result(r) for r in responses
         ]
 
+        loop = AgentLoop(max_turns=3)
         result = loop.run("do a thing")
 
         assert result.ok
@@ -214,11 +238,12 @@ class TestAgentLoopRun:
 
 class TestRunConvenience:
 
+    @patch("keanu.hero.do.call_oracle")
     @patch("keanu.hero.do.Feel")
-    def test_run_function(self, MockFeel):
-        MockFeel.return_value.felt_call.return_value = make_feel_result(
-            json_response(done=True, answer="done")
-        )
+    def test_run_function(self, MockFeel, mock_oracle):
+        response = json_response(done=True, answer="done")
+        mock_oracle.return_value = response
+        MockFeel.return_value.check.return_value = make_feel_check_result(response)
         MockFeel.return_value.stats.return_value = {}
 
         result = run("simple task")

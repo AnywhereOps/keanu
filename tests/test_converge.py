@@ -1,7 +1,8 @@
 """Tests for converge/ - duality graph and splitting (no LLM needed)."""
 
 from keanu.converge.graph import DualityGraph
-from keanu.converge.engine import split_via_graph, parse_json_response
+from keanu.converge.engine import split_via_graph
+from keanu.oracle import interpret
 
 
 class TestDualityGraph:
@@ -45,13 +46,13 @@ class TestSplitViaGraph:
 
 class TestParseJson:
     def test_parse_clean_json(self):
-        result = parse_json_response('{"key": "value"}')
+        result = interpret('{"key": "value"}')
         assert result["key"] == "value"
 
     def test_parse_json_in_markdown(self):
-        result = parse_json_response('```json\n{"key": "value"}\n```')
+        result = interpret('```json\n{"key": "value"}\n```')
         assert result["key"] == "value"
 
     def test_parse_json_with_preamble(self):
-        result = parse_json_response('Here is the result:\n{"key": "value"}\nDone.')
+        result = interpret('Here is the result:\n{"key": "value"}\nDone.')
         assert result["key"] == "value"

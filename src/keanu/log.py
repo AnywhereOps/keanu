@@ -51,6 +51,7 @@ def get_tracer():
 
 LEVELS = {"debug": 0, "info": 1, "warn": 2, "error": 3}
 _min_level = LEVELS["info"]
+_sink = None
 
 
 def set_level(level: str):
@@ -58,8 +59,14 @@ def set_level(level: str):
     _min_level = LEVELS.get(level, 1)
 
 
+def set_sink(fn):
+    """Register where logs go besides console. fn(subsystem, level, message, attrs)."""
+    global _sink
+    _sink = fn
+
+
 def log(subsystem: str, level: str, message: str, **attrs):
-    """Log to console AND record as span event."""
+    """Log to console, record as span event, and forward to sink."""
     if LEVELS.get(level, 1) >= _min_level:
         ts = datetime.now().strftime("%H:%M:%S")
         prefix = f"[{ts} keanu:{subsystem}]"
@@ -73,6 +80,13 @@ def log(subsystem: str, level: str, message: str, **attrs):
             f"keanu.{subsystem}.{level}",
             attributes={"message": message, "subsystem": subsystem, **attrs},
         )
+
+    # forward to sink (ledger, etc) if registered
+    if _sink is not None:
+        try:
+            _sink(subsystem, level, message, attrs if attrs else None)
+        except Exception:
+            pass  # sink errors never block the caller
 
 
 def debug(subsystem: str, message: str, **attrs):
