@@ -67,6 +67,7 @@ class Repl:
             try:
                 user_input = console.input("[green]> [/green]").strip()
             except (EOFError, KeyboardInterrupt):
+                self._flush_ledger()
                 console.print("\n  [dim]bye[/dim]")
                 break
 
@@ -87,6 +88,7 @@ class Repl:
         arg = parts[1].strip() if len(parts) > 1 else ""
 
         if command in ("/quit", "/q", "/exit"):
+            self._flush_ledger()
             console.print("  [dim]bye[/dim]")
             return True
 
@@ -174,6 +176,12 @@ class Repl:
             console.print(f"  [dim]{', '.join(parts)}[/dim]")
 
         console.print()
+
+
+    def _flush_ledger(self):
+        """commit any buffered log entries before exit."""
+        from keanu.log import flush_sink
+        flush_sink()
 
 
 def run_repl(legend="creator", model=None):

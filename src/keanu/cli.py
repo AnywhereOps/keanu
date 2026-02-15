@@ -21,6 +21,7 @@ Usage:
 """
 
 import argparse
+import atexit
 import sys
 from pathlib import Path
 
@@ -588,6 +589,156 @@ def cmd_forge(args):
     print()
 
 
+def cmd_dream(args):
+    """Dream up a plan. Break a goal into phases and steps."""
+    from keanu.hero.dream import dream
+
+    result = dream(args.goal, context=args.context or "", legend=args.legend, model=args.model)
+
+    if not result.ok:
+        print(f"\n  Dream failed: {result.error}\n")
+        return
+
+    print(f"\n  Dream: {result.goal}")
+    print(f"  {result.total_steps} steps across {len(result.phases)} phases\n")
+
+    for i, phase in enumerate(result.phases, 1):
+        print(f"  Phase {i}: {phase.get('name', 'unnamed')}")
+        for step in phase.get("steps", []):
+            dep = f" (after: {step['depends_on']})" if step.get("depends_on") else ""
+            print(f"    - {step['action']}{dep}")
+            if step.get("why"):
+                print(f"      {step['why']}")
+        print()
+
+
+def cmd_craft(args):
+    """Craft code. Specialized agent loop for writing and editing code."""
+    from keanu.hero.craft import craft
+
+    store = None
+    if not args.no_memory:
+        try:
+            from keanu.memory import MemberberryStore
+            store = MemberberryStore()
+        except Exception:
+            pass
+
+    result = craft(args.task, legend=args.legend, model=args.model,
+                   store=store, max_turns=args.max_turns)
+
+    if result.ok:
+        print(f"\n  Crafted ({len(result.steps)} steps).\n")
+        if result.answer:
+            print(f"  {result.answer}\n")
+        if result.files_changed:
+            print(f"  Files changed:")
+            for f in result.files_changed:
+                print(f"    {f}")
+            print()
+    elif result.status == "paused":
+        print(f"\n  Paused at step {len(result.steps)}: {result.error}\n")
+    elif result.status == "max_turns":
+        print(f"\n  Hit turn limit ({args.max_turns}).\n")
+    else:
+        print(f"\n  Error: {result.error}\n")
+
+    if args.verbose and result.steps:
+        print("  Steps:")
+        for s in result.steps:
+            status = "ok" if s.ok else "FAIL"
+            print(f"    [{s.turn}] {s.action} ({status}): {s.result[:80]}")
+        print()
+
+
+def cmd_speak(args):
+    """Speak content to a specific audience."""
+    from keanu.hero.speak import speak
+
+    content = args.content
+    if args.file:
+        with open(args.file) as f:
+            content = f.read()
+
+    if not content:
+        print("  Provide content as argument or --file")
+        return
+
+    result = speak(content, audience=args.audience, legend=args.legend, model=args.model)
+
+    if not result.ok:
+        print(f"\n  Speak failed: {result.error}\n")
+        return
+
+    print(f"\n  Audience: {result.audience}\n")
+    print(f"  {result.translation}\n")
+
+    if result.key_shifts:
+        print(f"  Shifts:")
+        for shift in result.key_shifts:
+            print(f"    - {shift}")
+        print()
+
+
+def cmd_prove(args):
+    """Test a hypothesis by gathering evidence."""
+    from keanu.hero.prove import prove
+
+    store = None
+    if not args.no_memory:
+        try:
+            from keanu.memory import MemberberryStore
+            store = MemberberryStore()
+        except Exception:
+            pass
+
+    result = prove(args.hypothesis, context=args.context or "",
+                   legend=args.legend, model=args.model,
+                   store=store, max_turns=args.max_turns)
+
+    if not result.ok:
+        print(f"\n  Prove failed: {result.error}\n")
+        return
+
+    verdict_color = {
+        "supported": "SUPPORTED",
+        "refuted": "REFUTED",
+        "inconclusive": "INCONCLUSIVE",
+    }
+    v = verdict_color.get(result.verdict, result.verdict.upper())
+
+    print(f"\n  Hypothesis: {result.hypothesis}")
+    print(f"  Verdict: {v} (confidence: {result.confidence:.0%})\n")
+
+    if result.evidence_for:
+        print(f"  Evidence for:")
+        for e in result.evidence_for:
+            print(f"    + {e}")
+        print()
+
+    if result.evidence_against:
+        print(f"  Evidence against:")
+        for e in result.evidence_against:
+            print(f"    - {e}")
+        print()
+
+    if result.gaps:
+        print(f"  Gaps:")
+        for g in result.gaps:
+            print(f"    ? {g}")
+        print()
+
+    if result.summary:
+        print(f"  {result.summary}\n")
+
+    if args.verbose and result.steps:
+        print("  Steps:")
+        for s in result.steps:
+            status = "ok" if s.ok else "FAIL"
+            print(f"    [{s.turn}] {s.action} ({status}): {s.result[:80]}")
+        print()
+
+
 def cmd_do(args):
     """Run the general-purpose agentic loop on a task."""
     from keanu.hero.do import run as do_run
@@ -876,6 +1027,55 @@ def main():
     p_forge.add_argument("--misses", action="store_true", help="Show router miss patterns")
     p_forge.set_defaults(func=cmd_forge)
 
+    # dream
+    p_dream = subparsers.add_parser("dream", help="Dream up a plan (phases + steps)")
+    p_dream.add_argument("goal", help="What to plan for")
+    p_dream.add_argument("--context", default="", help="Extra context for the planner")
+    p_dream.add_argument("--legend", "-l", default="creator",
+                         help="Which legend answers (default: creator)")
+    p_dream.add_argument("--model", "-m", default=None, help="Model name")
+    p_dream.set_defaults(func=cmd_dream)
+
+    # craft
+    p_craft = subparsers.add_parser("craft", help="Craft code (specialized agent loop)")
+    p_craft.add_argument("task", help="What to build or change")
+    p_craft.add_argument("--legend", "-l", default="creator",
+                         help="Which legend answers (default: creator)")
+    p_craft.add_argument("--model", "-m", default=None, help="Model name")
+    p_craft.add_argument("--max-turns", type=int, default=25,
+                         help="Max turns before stopping (default: 25)")
+    p_craft.add_argument("--no-memory", action="store_true",
+                         help="Don't use memberberry store")
+    p_craft.add_argument("--verbose", "-v", action="store_true",
+                         help="Show step-by-step log")
+    p_craft.set_defaults(func=cmd_craft)
+
+    # speak
+    p_speak = subparsers.add_parser("speak", help="Translate content for an audience")
+    p_speak.add_argument("content", nargs="?", default="", help="Content to translate")
+    p_speak.add_argument("--file", "-f", default="", help="Read content from file")
+    p_speak.add_argument("--audience", "-a", default="friend",
+                         help="Target audience (friend, executive, junior-dev, 5-year-old, architect)")
+    p_speak.add_argument("--legend", "-l", default="creator",
+                         help="Which legend answers (default: creator)")
+    p_speak.add_argument("--model", "-m", default=None, help="Model name")
+    p_speak.set_defaults(func=cmd_speak)
+
+    # prove
+    p_prove = subparsers.add_parser("prove", help="Test a hypothesis with evidence")
+    p_prove.add_argument("hypothesis", help="What to test")
+    p_prove.add_argument("--context", default="", help="Extra context")
+    p_prove.add_argument("--legend", "-l", default="creator",
+                         help="Which legend answers (default: creator)")
+    p_prove.add_argument("--model", "-m", default=None, help="Model name")
+    p_prove.add_argument("--max-turns", type=int, default=12,
+                         help="Max evidence-gathering turns (default: 12)")
+    p_prove.add_argument("--no-memory", action="store_true",
+                         help="Don't use memberberry store")
+    p_prove.add_argument("--verbose", "-v", action="store_true",
+                         help="Show step-by-step evidence log")
+    p_prove.set_defaults(func=cmd_prove)
+
     # do
     p_do = subparsers.add_parser("do", help="General-purpose agentic loop")
     p_do.add_argument("task", help="Task to accomplish")
@@ -912,6 +1112,16 @@ def main():
         _bootstrap_coef_tracing()
     except Exception:
         pass  # tracing is optional, never block the CLI
+
+    # wire the ledger: every log line goes to git-backed JSONL
+    try:
+        from keanu.memory import GitStore
+        from keanu.log import set_sink
+        ledger = GitStore(namespace="keanu")
+        set_sink(ledger.append_log, flush_fn=ledger.flush)
+        atexit.register(ledger.flush)
+    except Exception:
+        pass  # ledger is optional, never block the CLI
 
     args.func(args)
 

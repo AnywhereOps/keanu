@@ -14,6 +14,7 @@ from keanu.memory.memberberry import (
     Plan,
     Action,
 )
+from keanu.memory.gitstore import GitStore, LOG_IMPORTANCE, DEFAULT_HERO
 from keanu.memory.disagreement import Disagreement, DisagreementTracker
 from keanu.memory.bridge import recall_via_openpaw, openpaw_available
 
@@ -432,3 +433,97 @@ class TestConfigAudit:
             store = MemberberryStore()
             result = store._validate_config({"max_recall": -5})
             assert result["max_recall"] == 1  # clamped to min 1
+
+
+class TestLedger:
+    """tests for gitstore log sink (the ledger)."""
+
+    def _make_store(self, tmp_path):
+        with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
+             patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
+             patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
+             patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"), \
+             patch("keanu.memory.gitstore.SHARED_DIR", tmp_path):
+            store = GitStore(namespace="test", repo_dir=tmp_path)
+        return store
+
+    def test_append_log_writes_jsonl(self, tmp_path):
+        store = self._make_store(tmp_path)
+        store.append_log("scan", "info", "scanned 3 files")
+        shard = store._log_shard_path()
+        assert shard.exists()
+        line = json.loads(shard.read_text().strip())
+        assert line["content"] == "scanned 3 files"
+        assert line["memory_type"] == "log"
+        assert "scan" in line["tags"]
+        assert "info" in line["tags"]
+        assert line["importance"] == 3
+
+    def test_append_log_attrs(self, tmp_path):
+        store = self._make_store(tmp_path)
+        store.append_log("detect", "warn", "high sycophancy", {"score": 0.9})
+        shard = store._log_shard_path()
+        line = json.loads(shard.read_text().strip())
+        assert line["attrs"] == {"score": 0.9}
+        assert line["importance"] == 5
+
+    def test_append_log_no_attrs(self, tmp_path):
+        store = self._make_store(tmp_path)
+        store.append_log("memory", "debug", "loaded 12 berries")
+        shard = store._log_shard_path()
+        line = json.loads(shard.read_text().strip())
+        assert "attrs" not in line
+        assert line["importance"] == 1
+
+    def test_log_count_increments(self, tmp_path):
+        store = self._make_store(tmp_path)
+        assert store._log_count == 0
+        store.append_log("test", "info", "one")
+        store.append_log("test", "info", "two")
+        assert store._log_count == 2
+
+    def test_log_shard_separate_from_memory(self, tmp_path):
+        store = self._make_store(tmp_path)
+        log_path = store._log_shard_path()
+        mem_path = store._shard_path()
+        assert "logs" in str(log_path)
+        assert "logs" not in str(mem_path)
+
+    def test_session_hero(self, tmp_path):
+        store = self._make_store(tmp_path)
+        assert store._session_hero == DEFAULT_HERO
+        store.append_log("test", "info", "hello")
+        shard = store._log_shard_path()
+        line = json.loads(shard.read_text().strip())
+        assert line["session_hero"] == DEFAULT_HERO
+
+    def test_flush_commits(self, tmp_path):
+        store = self._make_store(tmp_path)
+        store.append_log("test", "info", "entry")
+        assert store._log_count == 1
+        with patch.object(store, '_commit_and_push') as mock_commit:
+            store.flush()
+            mock_commit.assert_called_once()
+            assert DEFAULT_HERO in mock_commit.call_args[0][0]
+        assert store._log_count == 0
+
+    def test_flush_noop_when_empty(self, tmp_path):
+        store = self._make_store(tmp_path)
+        with patch.object(store, '_commit_and_push') as mock_commit:
+            store.flush()
+            mock_commit.assert_not_called()
+
+    def test_recall_finds_logs(self, tmp_path):
+        store = self._make_store(tmp_path)
+        store.append_log("scan", "info", "scanned document.md for patterns")
+        # reload shared memories to pick up log entries
+        store._shared_memories = store._load_all_shared()
+        results = store.recall(query="scanned document")
+        assert len(results) >= 1
+        assert any(r["memory_type"] == "log" for r in results)
+
+    def test_log_importance_levels(self):
+        assert LOG_IMPORTANCE["debug"] == 1
+        assert LOG_IMPORTANCE["info"] == 3
+        assert LOG_IMPORTANCE["warn"] == 5
+        assert LOG_IMPORTANCE["error"] == 8

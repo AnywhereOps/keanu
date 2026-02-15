@@ -52,6 +52,7 @@ def get_tracer():
 LEVELS = {"debug": 0, "info": 1, "warn": 2, "error": 3}
 _min_level = LEVELS["info"]
 _sink = None
+_flush = None
 
 
 def set_level(level: str):
@@ -59,14 +60,25 @@ def set_level(level: str):
     _min_level = LEVELS.get(level, 1)
 
 
-def set_sink(fn):
-    """Register where logs go besides console. fn(subsystem, level, message, attrs)."""
-    global _sink
+def set_sink(fn, flush_fn=None):
+    """register where logs go besides console. fn(subsystem, level, message, attrs).
+    optional flush_fn is called to commit buffered entries."""
+    global _sink, _flush
     _sink = fn
+    _flush = flush_fn
+
+
+def flush_sink():
+    """flush the log sink. call on session end."""
+    if _flush is not None:
+        try:
+            _flush()
+        except Exception:
+            pass
 
 
 def log(subsystem: str, level: str, message: str, **attrs):
-    """Log to console, record as span event, and forward to sink."""
+    """log to console, record as span event, forward to sink."""
     if LEVELS.get(level, 1) >= _min_level:
         ts = datetime.now().strftime("%H:%M:%S")
         prefix = f"[{ts} keanu:{subsystem}]"

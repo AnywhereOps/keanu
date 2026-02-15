@@ -1,10 +1,10 @@
-"""Tests for log.py - subsystem logger + OpenTelemetry tracing."""
+"""Tests for log.py - subsystem logger + OpenTelemetry tracing + sink."""
 
 import io
 import sys
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
-from keanu.log import log, info, warn, debug, error, set_level, span, memory_span, pulse_span
+from keanu.log import log, info, warn, debug, error, set_level, set_sink, flush_sink, span, memory_span, pulse_span
 
 
 class TestConsoleLogger:
@@ -70,3 +70,58 @@ class TestSpans:
             info("test", "inside a span")
         captured = capsys.readouterr()
         assert "inside a span" in captured.out
+
+
+class TestSink:
+    def setup_method(self):
+        set_sink(None)
+
+    def teardown_method(self):
+        set_sink(None)
+
+    def test_sink_receives_log(self):
+        calls = []
+        set_sink(lambda sub, lvl, msg, attrs: calls.append((sub, lvl, msg, attrs)))
+        info("test", "hello sink")
+        assert len(calls) == 1
+        assert calls[0][0] == "test"
+        assert calls[0][1] == "info"
+        assert calls[0][2] == "hello sink"
+
+    def test_sink_receives_attrs(self):
+        calls = []
+        set_sink(lambda sub, lvl, msg, attrs: calls.append(attrs))
+        log("test", "info", "with attrs", key="val")
+        assert calls[0] == {"key": "val"}
+
+    def test_sink_none_attrs_when_empty(self):
+        calls = []
+        set_sink(lambda sub, lvl, msg, attrs: calls.append(attrs))
+        info("test", "no attrs")
+        assert calls[0] is None
+
+    def test_sink_error_doesnt_crash(self, capsys):
+        def bad_sink(sub, lvl, msg, attrs):
+            raise RuntimeError("boom")
+        set_sink(bad_sink)
+        info("test", "still works")
+        captured = capsys.readouterr()
+        assert "still works" in captured.out
+
+    def test_set_sink_clears(self):
+        calls = []
+        set_sink(lambda sub, lvl, msg, attrs: calls.append(1))
+        info("test", "one")
+        set_sink(None)
+        info("test", "two")
+        assert len(calls) == 1
+
+    def test_flush_sink(self):
+        flushed = []
+        set_sink(lambda *a: None, flush_fn=lambda: flushed.append(True))
+        flush_sink()
+        assert len(flushed) == 1
+
+    def test_flush_sink_noop_without_flush_fn(self):
+        set_sink(lambda *a: None)
+        flush_sink()  # should not raise

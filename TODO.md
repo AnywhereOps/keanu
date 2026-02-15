@@ -25,6 +25,13 @@
 - [ ] `keanu cook` - execute: write code, make changes, take action
 - [ ] Wire the loop: feel -> explore -> synthesize -> judge -> write -> feel
 
+### P1.5: Heroes (session identity)
+- [ ] Forge system: generate hero names dynamically (like terraform random_pet but with soul)
+- [ ] Heroes persist in `~/memberberries/heroes.jsonl`, accumulate history
+- [ ] Hero assignment: match hero to session work, or forge a new one
+- [ ] `keanu recall hero:wanderer` finds everything that hero ever did
+- [ ] Hero roster grows over time, alignment tracked per hero
+
 ### P2: Usable as a library
 - [ ] Clean public API (`from keanu import scan, detect, converge, remember`)
 - [ ] Openpaw as optional dependency (bridge stays subprocess-based)

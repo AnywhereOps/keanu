@@ -188,13 +188,13 @@ class GitStore(MemberberryStore):
     # -- Ledger (log sink) --
 
     def _log_shard_path(self) -> Path:
-        """Where log entries go. Separate from memory shards so volume doesn't bloat recall."""
+        """where log entries go. separate from memory shards so volume doesn't bloat recall."""
         month = datetime.now().strftime("%Y-%m")
         return self.repo_dir / self.namespace / "logs" / f"{month}.jsonl"
 
     def append_log(self, subsystem: str, level: str, message: str, attrs: dict = None):
-        """Fast path for log entries. Append-only, no dedup, no git commit.
-        Call flush() when the session ends."""
+        """fast path. append-only, no dedup, no git commit.
+        call flush() when the session ends."""
         entry = {
             "content": message,
             "memory_type": "log",
@@ -213,7 +213,7 @@ class GitStore(MemberberryStore):
         self._log_count += 1
 
     def flush(self):
-        """Batch commit all buffered log entries. One commit per session, not one per line."""
+        """batch commit all buffered log entries. one commit per session, not one per line."""
         if self._log_count > 0:
             self._commit_and_push(f"log: {self._session_hero} ({self._log_count} entries)")
             self._log_count = 0
