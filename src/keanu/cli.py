@@ -532,6 +532,144 @@ def cmd_todo(args):
     mod.generate_todo(args.project or ".")
 
 
+def cmd_abilities(args):
+    """List registered abilities."""
+    from keanu.abilities import list_abilities
+
+    abilities = list_abilities()
+    print(f"\n  {len(abilities)} registered abilities (ash):\n")
+    for ab in abilities:
+        kw = ", ".join(ab["keywords"][:5])
+        print(f"  {ab['name']}")
+        print(f"    {ab['description']}")
+        print(f"    triggers: {kw}")
+        print()
+
+
+def cmd_do(args):
+    """Run the general-purpose agentic loop on a task."""
+    from keanu.hero.do import run as do_run
+
+    store = None
+    if not args.no_memory:
+        try:
+            from keanu.memory import MemberberryStore
+            store = MemberberryStore()
+        except Exception:
+            pass
+
+    result = do_run(
+        task=args.task,
+        backend=args.backend,
+        model=args.model,
+        store=store,
+        max_turns=args.max_turns,
+    )
+
+    if result.ok:
+        print(f"\n  Done ({len(result.steps)} steps).\n")
+        if result.answer:
+            print(f"  {result.answer}\n")
+    elif result.status == "paused":
+        print(f"\n  Paused at step {len(result.steps)}.")
+        print(f"  Reason: {result.error}\n")
+    elif result.status == "max_turns":
+        print(f"\n  Hit turn limit ({args.max_turns}).")
+        if result.steps:
+            last = result.steps[-1]
+            print(f"  Last action: {last.action} -> {last.result[:120]}\n")
+    else:
+        print(f"\n  Error: {result.error}\n")
+
+    # step log
+    if args.verbose and result.steps:
+        print("  Steps:")
+        for s in result.steps:
+            status = "ok" if s.ok else "FAIL"
+            print(f"    [{s.turn}] {s.action} ({status}): {s.result[:80]}")
+        print()
+
+    # feel stats
+    fs = result.feel_stats
+    checks = fs.get("total_checks", 0)
+    breaths = fs.get("breaths_given", 0)
+    ability_hits = fs.get("ability_hits", 0)
+    if checks > 0 or ability_hits > 0:
+        parts = []
+        if checks > 0:
+            parts.append(f"{checks} checks")
+        if breaths > 0:
+            parts.append(f"{breaths} breaths")
+        if ability_hits > 0:
+            parts.append(f"{ability_hits} abilities used")
+        print(f"  Feel: {', '.join(parts)}")
+        print()
+
+
+def cmd_agent(args):
+    """Run the agentic loop on a question."""
+    from keanu.hero.loop import run as agent_run
+    from keanu.converge.graph import DualityGraph
+
+    store = None
+    if not args.no_memory:
+        try:
+            from keanu.memory import MemberberryStore
+            store = MemberberryStore()
+        except Exception:
+            pass
+
+    graph = DualityGraph()
+    result = agent_run(
+        question=args.question,
+        backend=args.backend,
+        model=args.model,
+        graph=graph,
+        store=store,
+        max_workers=args.workers,
+    )
+
+    if not result.accepted:
+        print(f"\n  Not sure this is the right question yet.\n")
+        if result.assessment and result.assessment.concerns:
+            print(f"  Concerns:")
+            for c in result.assessment.concerns:
+                print(f"    - {c}")
+        print(f"\n  Say more, or come at it differently.\n")
+        return
+
+    print(f"\n{'=' * 60}")
+    print(f"  CONVERGENCE")
+    print(f"{'=' * 60}")
+    if result.one_line:
+        print(f"\n  {result.one_line}\n")
+    if result.convergence:
+        print(f"  {result.convergence}\n")
+    if result.what_changes:
+        print(f"  What changes: {result.what_changes}\n")
+    if result.learnings:
+        print(f"  Learnings:")
+        for l in result.learnings:
+            print(f"    - {l}")
+        print()
+
+    # Feel stats
+    fs = result.feel_stats
+    checks = fs.get("total_checks", 0)
+    breaths = fs.get("breaths_given", 0)
+    ability_hits = fs.get("ability_hits", 0)
+    if checks > 0 or ability_hits > 0:
+        parts = []
+        if checks > 0:
+            parts.append(f"{checks} checks")
+        if breaths > 0:
+            parts.append(f"{breaths} breaths")
+        if ability_hits > 0:
+            parts.append(f"{ability_hits} abilities used")
+        print(f"  Feel: {', '.join(parts)}")
+    print()
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="keanu",
@@ -682,6 +820,35 @@ def main():
     p_todo = subparsers.add_parser("todo", help="Generate effort-aware TODO.md")
     p_todo.add_argument("--project", help="Project root directory (default: current)")
     p_todo.set_defaults(func=cmd_todo)
+
+    # agent
+    p_abilities = subparsers.add_parser("abilities", help="List registered abilities")
+    p_abilities.set_defaults(func=cmd_abilities)
+
+    # do
+    p_do = subparsers.add_parser("do", help="General-purpose agentic loop")
+    p_do.add_argument("task", help="Task to accomplish")
+    p_do.add_argument("--backend", "-b", choices=["ollama", "claude"],
+                      default="claude", help="LLM backend (default: claude)")
+    p_do.add_argument("--model", "-m", default=None, help="Model name")
+    p_do.add_argument("--max-turns", type=int, default=25,
+                      help="Max turns before stopping (default: 25)")
+    p_do.add_argument("--no-memory", action="store_true",
+                      help="Don't use memberberry store")
+    p_do.add_argument("--verbose", "-v", action="store_true",
+                      help="Show step-by-step log")
+    p_do.set_defaults(func=cmd_do)
+
+    p_agent = subparsers.add_parser("agent", help="Agentic convergence loop")
+    p_agent.add_argument("question", help="Question to explore")
+    p_agent.add_argument("--backend", "-b", choices=["ollama", "claude"],
+                         default="ollama", help="LLM backend")
+    p_agent.add_argument("--model", "-m", default=None, help="Model name")
+    p_agent.add_argument("--workers", "-w", type=int, default=3,
+                         help="Parallel leaf agents (default: 3)")
+    p_agent.add_argument("--no-memory", action="store_true",
+                         help="Don't store learnings in memberberry")
+    p_agent.set_defaults(func=cmd_agent)
 
     args = parser.parse_args()
     if not args.command:
