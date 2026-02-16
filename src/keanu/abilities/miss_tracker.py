@@ -5,38 +5,26 @@ an ability should exist. this captures those misses so forge
 can suggest what to build next.
 """
 
-import json
 import time
 from collections import Counter
-from pathlib import Path
 
-MISS_FILE = Path.home() / ".keanu" / "misses.jsonl"
+from keanu.paths import MISS_FILE
+from keanu.io import append_jsonl, read_jsonl
 
 
 def log_miss(prompt: str, confidence: float = 0.0):
     """Append a miss to the log."""
-    MISS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry = {
+    append_jsonl(MISS_FILE, {
         "ts": int(time.time()),
         "prompt": prompt[:500],
         "best_confidence": round(confidence, 3),
-    }
-    with open(MISS_FILE, "a") as f:
-        f.write(json.dumps(entry) + "\n")
+    })
 
 
 def get_misses(limit: int = 50) -> list[dict]:
     """Read recent misses."""
-    if not MISS_FILE.exists():
-        return []
-    lines = MISS_FILE.read_text().strip().splitlines()
-    misses = []
-    for line in lines[-limit:]:
-        try:
-            misses.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    return misses
+    all_misses = read_jsonl(MISS_FILE)
+    return all_misses[-limit:]
 
 
 def analyze_misses(limit: int = 50) -> list[tuple[str, int]]:
@@ -65,5 +53,5 @@ def analyze_misses(limit: int = 50) -> list[tuple[str, int]]:
 
 def clear_misses():
     """Truncate the miss log."""
-    if MISS_FILE.exists():
+    if MISS_FILE.exists():  # noqa: keep direct Path usage for truncate
         MISS_FILE.write_text("")

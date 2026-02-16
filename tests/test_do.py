@@ -5,6 +5,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 from keanu.hero.do import AgentLoop, LoopResult, Step, _build_system, run
+from keanu.oracle import try_interpret
 
 
 # ============================================================
@@ -53,37 +54,33 @@ class TestBuildSystem:
 
 
 # ============================================================
-# _parse_response
+# try_interpret (was _parse_response, now in oracle.py)
 # ============================================================
 
 class TestParseResponse:
 
-    def setup_method(self):
-        with patch("keanu.hero.do.Feel"):
-            self.loop = AgentLoop()
-
     def test_valid_json(self):
-        result = self.loop._parse_response('{"action": "read", "done": false}')
+        result = try_interpret('{"action": "read", "done": false}')
         assert result["action"] == "read"
 
     def test_json_in_markdown_fence(self):
         text = '```json\n{"action": "read", "done": false}\n```'
-        result = self.loop._parse_response(text)
+        result = try_interpret(text)
         assert result["action"] == "read"
 
     def test_json_with_surrounding_text(self):
         text = 'Here is my response:\n{"action": "ls", "args": {"path": "."}, "done": false}\nDone.'
-        result = self.loop._parse_response(text)
+        result = try_interpret(text)
         assert result["action"] == "ls"
 
     def test_invalid_json(self):
-        assert self.loop._parse_response("not json at all") is None
+        assert try_interpret("not json at all") is None
 
     def test_empty_string(self):
-        assert self.loop._parse_response("") is None
+        assert try_interpret("") is None
 
     def test_no_braces(self):
-        assert self.loop._parse_response("just some text") is None
+        assert try_interpret("just some text") is None
 
 
 # ============================================================

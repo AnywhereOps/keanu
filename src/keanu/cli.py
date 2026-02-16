@@ -430,7 +430,7 @@ def cmd_health(args):
     print()
 
 
-COEF_DIR = Path.home() / ".keanu" / "coef"
+from keanu.paths import COEF_DIR
 
 
 def _bootstrap_coef_tracing():

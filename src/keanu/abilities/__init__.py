@@ -25,6 +25,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from keanu.paths import GRIMOIRE
+from keanu.io import read_json, write_json
+
 
 # ============================================================
 # ABILITY PROTOCOL
@@ -115,23 +118,15 @@ def list_abilities() -> list[dict]:
 # GRIMOIRE - the spellbook. tracks what you've cast.
 # ============================================================
 
-GRIMOIRE = Path.home() / ".keanu" / "grimoire.json"
-
 
 def _load_grimoire() -> dict:
     """load the spellbook."""
-    if not GRIMOIRE.exists():
-        return {"unlocked": {}}
-    try:
-        return json.loads(GRIMOIRE.read_text())
-    except (json.JSONDecodeError, OSError):
-        return {"unlocked": {}}
+    return read_json(GRIMOIRE, default={"unlocked": {}})
 
 
 def _save_grimoire(data: dict):
     """save the spellbook."""
-    GRIMOIRE.parent.mkdir(parents=True, exist_ok=True)
-    GRIMOIRE.write_text(json.dumps(data, indent=2))
+    write_json(GRIMOIRE, data)
 
 
 def record_cast(name: str) -> bool:

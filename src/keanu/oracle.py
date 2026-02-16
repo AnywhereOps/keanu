@@ -54,12 +54,9 @@ def call_oracle(prompt, system="", legend="creator", model=None):
 def interpret(text):
     """read what the oracle said back. parse JSON from the response.
 
-    LLMs often return JSON wrapped in markdown code fences (```json ... ```)
-    or with extra explanation text before and after the actual JSON.
-    This function strips all of that away. It looks for the first { and
-    last } in the response, pulls out everything between them, and
-    parses it into a Python dictionary. If the JSON is malformed, it
-    raises json.JSONDecodeError.
+    LLMs often return JSON wrapped in markdown code fences or with extra text.
+    strips all that, finds the JSON object, returns a dict.
+    raises json.JSONDecodeError if malformed.
 
     in the world: the oracle speaks in riddles. interpret finds the meaning.
     """
@@ -73,6 +70,14 @@ def interpret(text):
     if start >= 0 and end > start:
         cleaned = cleaned[start:end]
     return json.loads(cleaned)
+
+
+def try_interpret(text):
+    """interpret, but returns None instead of raising on failure."""
+    try:
+        return interpret(text)
+    except (json.JSONDecodeError, ValueError, IndexError):
+        return None
 
 
 def _reach_cloud(prompt, system, legend, model):

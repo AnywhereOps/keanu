@@ -16,7 +16,8 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-from .memberberry import SHARED_DIR
+from keanu.paths import SHARED_DIR
+from keanu.io import append_jsonl
 
 # importance by log level. debug is background noise, error is a scar.
 LOG_IMPORTANCE = {"debug": 1, "info": 3, "warn": 5, "error": 8}
@@ -69,12 +70,6 @@ class GitStore:
         month = datetime.now().strftime("%Y-%m")
         return self.repo_dir / self.namespace / "logs" / f"{month}.jsonl"
 
-    @staticmethod
-    def _append_jsonl(path: Path, record: dict):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "a") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-
     def append_log(self, subsystem: str, level: str, message: str, attrs: dict = None):
         """fast path. append-only, no dedup, no git commit.
         call flush() when the session ends."""
@@ -92,7 +87,7 @@ class GitStore:
         }
         if attrs:
             entry["attrs"] = attrs
-        self._append_jsonl(self._log_shard_path(), entry)
+        append_jsonl(self._log_shard_path(), entry)
         self._log_count += 1
 
     def flush(self):

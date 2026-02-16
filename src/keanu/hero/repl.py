@@ -20,10 +20,26 @@ from keanu.log import info
 
 console = Console()
 
-BANNER = r"""
-  [bold green]keanu[/bold green]
-  type a task, or /help
-"""
+def _banner():
+    """build the banner. green block letters."""
+    lines = [
+        " ██╗  ██╗███████╗ █████╗ ███╗   ██╗██╗   ██╗",
+        " ██║ ██╔╝██╔════╝██╔══██╗████╗  ██║██║   ██║",
+        " █████╔╝ █████╗  ███████║██╔██╗ ██║██║   ██║",
+        " ██╔═██╗ ██╔══╝  ██╔══██║██║╚██╗██║██║   ██║",
+        " ██║  ██╗███████╗██║  ██║██║ ╚████║╚██████╔╝",
+        " ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝",
+    ]
+    result = [Text()]
+    for line in lines:
+        result.append(Text(line, style="bold green"))
+    result.append(Text())
+    result.append(Text("  type a task, or /help", style="dim"))
+    result.append(Text())
+    return result
+
+
+BANNER = _banner()
 
 HELP_TEXT = """
   [bold]/help[/bold]              show this
@@ -61,7 +77,8 @@ class Repl:
 
     def run(self):
         """Main REPL loop."""
-        console.print(BANNER)
+        for line in BANNER:
+            console.print(line)
 
         while True:
             try:

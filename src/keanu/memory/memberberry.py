@@ -20,16 +20,16 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional
 from enum import Enum
 
+from keanu.io import append_jsonl
+
 
 # ============================================================
 # CONFIGURATION
 # ============================================================
 
-MEMBERBERRY_DIR = Path.home() / ".memberberry"
-MEMORIES_FILE = MEMBERBERRY_DIR / "memories.json"
-PLANS_FILE = MEMBERBERRY_DIR / "plans.json"
-CONFIG_FILE = MEMBERBERRY_DIR / "config.json"
-SHARED_DIR = Path.home() / "memberberries"
+from keanu.paths import (
+    MEMBERBERRY_DIR, MEMORIES_FILE, PLANS_FILE, CONFIG_FILE, SHARED_DIR,
+)
 
 DEFAULT_CONFIG = {
     "max_recall": 10,
@@ -214,10 +214,8 @@ class MemberberryStore:
 
     @staticmethod
     def _append_jsonl(path: Path, record: dict):
-        path.parent.mkdir(parents=True, exist_ok=True)
         clean = {k: v for k, v in record.items() if not k.startswith("_")}
-        with open(path, "a") as f:
-            f.write(json.dumps(clean, ensure_ascii=False) + "\n")
+        append_jsonl(path, clean)
 
     @staticmethod
     def _shard_path(base_dir: Path, namespace: str) -> Path:

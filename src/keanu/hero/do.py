@@ -14,10 +14,9 @@ the loop keeps going until the task is done or paused.
 
 import json
 from dataclasses import dataclass, field
-from typing import Optional
 
 from keanu.abilities import _REGISTRY, list_abilities, record_cast
-from keanu.oracle import call_oracle
+from keanu.oracle import call_oracle, try_interpret
 from keanu.hero.feel import Feel, FeelResult
 from keanu.log import info, warn, debug
 
@@ -196,7 +195,7 @@ class AgentLoop:
                 )
 
             # parse the oracle's response
-            parsed = self._parse_response(response)
+            parsed = try_interpret(response)
             if parsed is None:
                 self.steps.append(Step(
                     turn=turn, action="think",
@@ -289,37 +288,6 @@ class AgentLoop:
             feel_stats=self.feel.stats(),
             error=f"hit {self.max_turns} turn limit",
         )
-
-    def _parse_response(self, response: str) -> Optional[dict]:
-        """Parse JSON from the oracle's response.
-
-        The oracle is told to respond in JSON but sometimes wraps it in
-        markdown code fences or adds extra text. This strips all that,
-        finds the JSON object, and returns it as a dict. Returns None
-        if it can't find valid JSON.
-
-        in the world: interpret what the oracle said.
-        """
-        text = response.strip()
-
-        if text.startswith("```"):
-            lines = text.split("\n")
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            text = "\n".join(lines).strip()
-
-        start = text.find("{")
-        end = text.rfind("}")
-        if start == -1 or end == -1:
-            return None
-
-        try:
-            return json.loads(text[start:end + 1])
-        except json.JSONDecodeError:
-            return None
-
 
 # ============================================================
 # CONVENIENCE

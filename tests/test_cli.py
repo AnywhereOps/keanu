@@ -60,4 +60,4 @@ class TestCLIHelp:
         r = _run_keanu()
         # bare keanu now launches REPL (exits 0 when stdin closes)
         assert r.returncode == 0
-        assert "keanu" in r.stdout
+        assert "type a task" in r.stdout

@@ -126,7 +126,7 @@ def error(subsystem: str, message: str, **attrs):
 # ============================================================
 
 # where the sink writes. gitstore puts JSONL here.
-MEMBERBERRY_DIR = Path.home() / "memberberries"
+from keanu.paths import SHARED_DIR as MEMBERBERRY_DIR
 
 
 def remember(content: str, memory_type: str = "fact", tags: list = None,

@@ -13,10 +13,9 @@ test the edge.
 
 import json
 from dataclasses import dataclass, field
-from typing import Optional
 
 from keanu.abilities import _REGISTRY, list_abilities
-from keanu.oracle import call_oracle, interpret
+from keanu.oracle import call_oracle, try_interpret
 from keanu.hero.feel import Feel
 from keanu.log import info, warn, debug
 
@@ -131,7 +130,7 @@ def craft(task: str, legend: str = "creator", model: str = None,
                 feel_stats=feel.stats(), error="black state",
             )
 
-        parsed = _parse(response)
+        parsed = try_interpret(response)
         if parsed is None:
             steps.append(CraftStep(
                 turn=turn, action="think",
@@ -208,21 +207,3 @@ def craft(task: str, legend: str = "creator", model: str = None,
     )
 
 
-def _parse(response: str) -> Optional[dict]:
-    """interpret the oracle's JSON response, stripping code fences."""
-    text = response.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1:
-        return None
-    try:
-        return json.loads(text[start:end + 1])
-    except json.JSONDecodeError:
-        return None
