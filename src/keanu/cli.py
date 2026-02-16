@@ -336,6 +336,37 @@ def cmd_test(args):
         print()
 
 
+def cmd_lint(args):
+    """Run project linter."""
+    from keanu.abilities.hands.lint import LintAbility
+    ab = LintAbility()
+    ctx = {}
+    if args.path:
+        ctx["path"] = args.path
+    if args.fix:
+        ctx["fix"] = True
+    result = ab.execute("", ctx)
+    print(f"\n{result['result']}\n")
+    if result["data"].get("issues"):
+        print(f"  Issues ({result['data']['issue_count']}):")
+        for issue in result["data"]["issues"][:20]:
+            print(f"    {issue['file']}:{issue['line']} {issue['message']}")
+        print()
+
+
+def cmd_format(args):
+    """Run project formatter."""
+    from keanu.abilities.hands.lint import FormatAbility
+    ab = FormatAbility()
+    ctx = {}
+    if args.path:
+        ctx["path"] = args.path
+    if args.check:
+        ctx["check"] = True
+    result = ab.execute("", ctx)
+    print(f"\n{result['result']}\n")
+
+
 def cmd_converge(args):
     from keanu.converge.engine import run
     result = run(args.question, legend=args.legend, model=args.model, verbose=True)
@@ -1036,6 +1067,26 @@ def _build_parsers(subparsers):
     p.add_argument("--limit", "-n", type=int, default=5, help="Number of results")
     p.set_defaults(func=cmd_search)
 
+    # -- coding tools --
+    p = subparsers.add_parser("git", help="Git operations")
+    p.add_argument("op", choices=["status", "diff", "log", "blame", "branch", "stash", "add", "commit", "show"],
+                   default="status", nargs="?")
+    p.add_argument("--file", default="", help="File for diff/blame")
+    p.add_argument("-n", type=int, default=0, help="Number of log entries")
+    p.add_argument("--name", default="", help="Branch name")
+    p.add_argument("--message", default="", help="Commit message")
+    p.add_argument("--staged", action="store_true", help="Show staged diff")
+    p.add_argument("--sub", default="", help="Sub-operation (list/create/switch for branch, save/pop/list for stash)")
+    p.add_argument("--files", nargs="*", default=[], help="Files to stage")
+    p.set_defaults(func=cmd_git)
+
+    p = subparsers.add_parser("test", help="Run tests")
+    p.add_argument("op", choices=["run", "discover", "targeted", "coverage"],
+                   default="run", nargs="?")
+    p.add_argument("--target", "-t", default="", help="Specific test file or test")
+    p.add_argument("--files", nargs="*", default=[], help="Source files for targeted testing")
+    p.set_defaults(func=cmd_test)
+
     # -- analysis --
     p = subparsers.add_parser("scan", help="Three-primary reading")
     p.add_argument("files", nargs="+")
@@ -1161,6 +1212,16 @@ def _build_parsers(subparsers):
     p = subparsers.add_parser("mistakes", help="Mistake patterns and stats")
     p.add_argument("--clear", action="store_true", help="Clear stale mistakes")
     p.set_defaults(func=cmd_mistakes)
+
+    p = subparsers.add_parser("lint", help="Run project linter")
+    p.add_argument("--path", default="", help="Path to lint (default: cwd)")
+    p.add_argument("--fix", action="store_true", help="Auto-fix issues")
+    p.set_defaults(func=cmd_lint)
+
+    p = subparsers.add_parser("format", aliases=["fmt"], help="Run project formatter")
+    p.add_argument("--path", default="", help="Path to format (default: cwd)")
+    p.add_argument("--check", action="store_true", help="Check only, don't modify")
+    p.set_defaults(func=cmd_format)
 
     p = subparsers.add_parser("deps", help="Dependency graph stats")
     p.add_argument("--root", default="", help="Project root (default: cwd)")

@@ -1,6 +1,6 @@
 """hands: abilities that touch the world.
 
-read, write, edit, search, ls, run, git, test.
+read, write, edit, search, ls, run, git, test, lint, format.
 invoked explicitly by the loop, never by keyword match.
 """
 
@@ -11,3 +11,4 @@ from keanu.abilities.hands.hands import (  # noqa: F401
 )
 from keanu.abilities.hands.git import GitAbility  # noqa: F401
 from keanu.abilities.hands.test import TestAbility  # noqa: F401
+from keanu.abilities.hands.lint import LintAbility, FormatAbility  # noqa: F401

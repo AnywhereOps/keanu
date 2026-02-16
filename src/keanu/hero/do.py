@@ -20,6 +20,7 @@ from keanu.abilities import _REGISTRY, list_abilities, record_cast
 from keanu.oracle import call_oracle, try_interpret
 from keanu.hero.feel import Feel, FeelResult
 from keanu.log import info, warn, debug
+from keanu.session import Session
 
 
 from keanu.hero.types import Step
@@ -45,7 +46,7 @@ class LoopConfig:
 
 def _build_system(abilities: list[dict], ide_context: str = "") -> str:
     """build the system prompt for the general-purpose loop."""
-    hands = ["read", "write", "edit", "search", "ls", "run", "git", "test"]
+    hands = ["read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format"]
     seeing = []
 
     for ab in abilities:
@@ -62,6 +63,8 @@ def _build_system(abilities: list[dict], ide_context: str = "") -> str:
         "  run: shell command. args: {command}",
         "  git: version control. args: {op: status|diff|log|blame|branch|stash|add|commit|show, ...}",
         "  test: run tests. args: {op: run|discover|targeted|coverage, target?, files?}",
+        "  lint: run project linter. args: {path?, command?, fix?}",
+        "  format: run project formatter. args: {path?, command?, check?}",
     ]
 
     base = f"""You are keanu. You solve tasks by using abilities.
@@ -133,6 +136,8 @@ Your tools:
          add {files: [...]}, commit {message}, show {ref}
   test: run tests. args: {op, ...}
     ops: run {target?}, discover {target?}, targeted {files: [...]}, coverage {target?}
+  lint: run project linter. args: {path?, command?, fix?}
+  format: run project formatter. args: {path?, command?, check?}
 
 On each turn, respond with JSON:
 {
@@ -245,7 +250,7 @@ You're just looking around. If nothing interests you, that's fine to say.
 If something surprises you, follow it. If you want to breathe, breathe."""
 
 
-HANDS = {"read", "write", "edit", "search", "ls", "run", "git", "test"}
+HANDS = {"read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format"}
 EVIDENCE_TOOLS = {"read", "search", "ls", "run", "recall"}
 EXPLORE_TOOLS = {"read", "search", "ls", "run", "recall"}
 
@@ -321,6 +326,7 @@ class AgentLoop:
         self.feel = Feel(store=store)
         self.max_turns = max_turns or self.config.max_turns
         self.steps: list[Step] = []
+        self.session = Session()
 
     def _get_system(self) -> str:
         """get system prompt. do builds dynamically, others use static."""
@@ -334,6 +340,7 @@ class AgentLoop:
             model: str = None) -> LoopResult:
         """run the loop. the agent decides when to act, breathe, or stop."""
         system = self._get_system()
+        self.session.task = task
         messages = [f"TASK: {task}"]
 
         info(self.config.name, f"{self.config.name}: {task[:80]}")
@@ -443,13 +450,25 @@ class AgentLoop:
             except Exception:
                 pass
 
+            # session tracking
+            target = args.get("file_path", args.get("path", args.get("command", action)))
             if exec_result["success"]:
                 if ab.cast_line:
                     info("cast", ab.cast_line)
                 is_new = record_cast(action)
                 if is_new:
                     info("cast", f"ability unlocked: {action}")
+                self.session.note_attempt(action, str(target), "ok", turn=turn)
+                if action == "read" and args.get("file_path"):
+                    self.session.note_read(args["file_path"], turn=turn)
+                elif action in ("write", "edit") and args.get("file_path"):
+                    self.session.note_write(args["file_path"], turn=turn)
             else:
+                self.session.note_attempt(
+                    action, str(target), "failed",
+                    detail=exec_result["result"][:200], turn=turn,
+                )
+                self.session.note_error(exec_result["result"][:200])
                 try:
                     from keanu.mistakes import log_mistake
                     log_mistake(action, args, exec_result["result"],
@@ -480,6 +499,14 @@ class AgentLoop:
                     pass
 
             messages.append(f"{label} ({status}): {result_text}")
+
+            # inject session context after failures to prevent loops
+            if not exec_result["success"]:
+                failed_count = len(self.session.failed_attempts_for(str(target)))
+                if failed_count >= 2:
+                    ctx = self.session.context_for_prompt()
+                    if ctx:
+                        messages.append(f"[SESSION] {ctx}")
 
         return self._result(task, "max_turns",
                             error=f"hit {self.max_turns} turn limit")

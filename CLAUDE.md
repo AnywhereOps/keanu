@@ -69,6 +69,12 @@ src/keanu/
                            JS errors, Go panics -> structured ParsedError.
     deps.py                dependency graph. AST-based import parsing,
                            who_imports, find_circular, external_deps.
+    project.py             project model detector. auto-detect Python/Node/
+                           Go/Rust from manifests. knows test/build/lint commands.
+    session.py             working memory for agent sessions. tracks files,
+                           decisions, attempts, errors. dies when loop ends.
+    context.py             context manager. tracks what the agent knows,
+                           token budget, import graph awareness, priority files.
 
     legends/               who answers when you ask.
         __init__.py        Legend dataclass + registry. load_legend(name).
@@ -107,6 +113,7 @@ src/keanu/
 
         hands/             action abilities (read + write).
             hands.py       read, write, edit, search, ls, run.
+            lint.py        lint and format abilities. auto-detect from project model.
 
         world/             external-reaching abilities.
             fuse.py        convergence as an ability.
@@ -197,6 +204,12 @@ keanu memory disagree record ...     # track a disagreement
 keanu forge "name" --desc --keywords # scaffold a new ability
 keanu forge --misses                 # show what abilities are missing
 keanu abilities                      # list all registered abilities
+keanu lint                           # run project linter
+keanu lint --fix                     # auto-fix lint issues
+keanu format                         # run project formatter
+keanu format --check                 # check formatting only
+keanu deps                           # dependency graph stats
+keanu deps --who src/keanu/oracle.py # who imports this file?
 keanu healthz                        # system health dashboard
 keanu metrics                        # convergence metrics (fire/ash ratio)
 keanu metrics --days 30              # metrics over 30 days

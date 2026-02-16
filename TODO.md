@@ -412,3 +412,12 @@
 - [x] Creator voice rewritten for spine.md
 - [x] Vector-based ability routing (bake_abilities.py)
 - [x] RAG engine: explore ability with ingest/retrieve/search (Haystack)
+- [x] Phase 6: Mistake memory (mistakes.py) + convergence metrics (metrics.py)
+- [x] Phase 2: Error parser (errors.py) - Python/pytest/JS/Go -> ParsedError
+- [x] Phase 2: Dependency graph (deps.py) - AST imports, circular detection
+- [x] Phase 2: Project model (project.py) - auto-detect Python/Node/Go/Rust
+- [x] Phase 2: Lint + format abilities (lint.py) - auto-detect from project model
+- [x] Phase 2: Session memory (session.py) - working memory per loop run
+- [x] Phase 2: Context manager (context.py) - token budget, import awareness
+- [x] Phase 1: Git ability (git.py) + test runner (test.py)
+- [x] 667 tests passing

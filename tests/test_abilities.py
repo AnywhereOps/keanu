@@ -24,7 +24,7 @@ class TestRegistry:
             "scout", "recall", "scry", "attune", "purge",
             "soulstone", "inspect", "recount", "explore", "fuse",
         }
-        hands = {"read", "write", "edit", "search", "ls", "run"}
+        hands = {"read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format"}
         expected = action_bar | hands
         assert expected.issubset(names), f"Missing: {expected - names}"
 
