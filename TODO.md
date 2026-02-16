@@ -424,4 +424,6 @@
 - [x] Phase 3: Smart model routing (router.py) - haiku/sonnet/opus by complexity
 - [x] Phase 5: Self-correction loop (autocorrect.py) - lint/test/retry after edits
 - [x] Phase 4: Code review (review.py) - security/perf/logic/style pattern checking
-- [x] 746 tests passing
+- [x] Phase 3: Session caching (cache.py) - FileCache, ASTCache, SymbolCache
+- [x] Phase 5: Task decomposition (decompose.py) - heuristic + dream-powered
+- [x] 780 tests passing

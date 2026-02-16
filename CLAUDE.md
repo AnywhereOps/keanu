@@ -81,6 +81,8 @@ src/keanu/
                            based on task complexity, turn count, keywords.
     review.py              code review. reads diffs, flags security/perf/logic/
                            style issues. OWASP patterns, Python anti-patterns.
+    cache.py               session-scoped caching. FileCache, ASTCache,
+                           SymbolCache. invalidates on write.
 
     legends/               who answers when you ask.
         __init__.py        Legend dataclass + registry. load_legend(name).
@@ -103,6 +105,8 @@ src/keanu/
         ide.py             MCP client for the VSCode extension.
         types.py           shared type definitions.
         autocorrect.py     self-correction after edits. lint, test, retry.
+        decompose.py       task decomposition. is_complex, decompose_simple,
+                           decompose_with_dream. breaks tasks into subtasks.
 
     abilities/             the action bar. each ability is ash (no LLM needed).
         __init__.py        Ability base class + registry. @ability decorator.
