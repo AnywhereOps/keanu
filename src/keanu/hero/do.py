@@ -45,7 +45,7 @@ class LoopConfig:
 
 def _build_system(abilities: list[dict], ide_context: str = "") -> str:
     """build the system prompt for the general-purpose loop."""
-    hands = ["read", "write", "edit", "search", "ls", "run"]
+    hands = ["read", "write", "edit", "search", "ls", "run", "git", "test"]
     seeing = []
 
     for ab in abilities:
@@ -60,6 +60,8 @@ def _build_system(abilities: list[dict], ide_context: str = "") -> str:
         "  search: grep/glob for code. args: {pattern, path?, glob?}",
         "  ls: list directory. args: {path}",
         "  run: shell command. args: {command}",
+        "  git: version control. args: {op: status|diff|log|blame|branch|stash|add|commit|show, ...}",
+        "  test: run tests. args: {op: run|discover|targeted|coverage, target?, files?}",
     ]
 
     base = f"""You are keanu. You solve tasks by using abilities.
@@ -125,6 +127,12 @@ Your tools:
   search: grep/glob for code. args: {pattern, path?, glob?}
   ls: list directory. args: {path}
   run: shell command. args: {command}
+  git: version control. args: {op, ...}
+    ops: status, diff, diff {staged:true}, log {n:10}, blame {file},
+         branch {sub: list|create|switch, name}, stash {sub: save|pop|list},
+         add {files: [...]}, commit {message}, show {ref}
+  test: run tests. args: {op, ...}
+    ops: run {target?}, discover {target?}, targeted {files: [...]}, coverage {target?}
 
 On each turn, respond with JSON:
 {
@@ -149,9 +157,12 @@ You can breathe: {"action": "breathe"} takes a beat. No pressure.
 Guidance:
 - Reading a file before editing it tends to go better.
 - Prefer surgical edits over full rewrites.
-- Running tests after changes catches things early.
+- After making changes, run tests to verify: {"action": "test", "args": {"op": "run"}}
+- If tests fail, read the failures, fix the code, run tests again. Max 3 fix attempts.
+- If still failing after 3 tries, back out changes and try a different approach.
+- Use git status to see what's changed. Use git diff to review before committing.
+- Stage and commit when a logical unit of work is done, not after every edit.
 - One action per turn. You'll see the result before choosing the next.
-- If tests fail, fix them or say what happened.
 - You're allowed to say "this approach isn't working" and try something else."""
 
 
@@ -234,7 +245,7 @@ You're just looking around. If nothing interests you, that's fine to say.
 If something surprises you, follow it. If you want to breathe, breathe."""
 
 
-HANDS = {"read", "write", "edit", "search", "ls", "run"}
+HANDS = {"read", "write", "edit", "search", "ls", "run", "git", "test"}
 EVIDENCE_TOOLS = {"read", "search", "ls", "run", "recall"}
 EXPLORE_TOOLS = {"read", "search", "ls", "run", "recall"}
 
@@ -456,7 +467,19 @@ class AgentLoop:
 
             status = "OK" if exec_result["success"] else "FAILED"
             label = "EVIDENCE" if self.config.name == "prove" else "RESULT"
-            messages.append(f"{label} ({status}): {exec_result['result'][:2000]}")
+            result_text = exec_result["result"][:2000]
+
+            # on failure, parse the error for the agent
+            if not exec_result["success"] and action in ("run", "test"):
+                try:
+                    from keanu.errors import parse as parse_error
+                    parsed_err = parse_error(result_text)
+                    if parsed_err.category != "unknown":
+                        result_text += f"\n\n[PARSED] {parsed_err.summary()}"
+                except Exception:
+                    pass
+
+            messages.append(f"{label} ({status}): {result_text}")
 
         return self._result(task, "max_turns",
                             error=f"hit {self.max_turns} turn limit")

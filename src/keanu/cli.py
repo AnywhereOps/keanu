@@ -292,6 +292,50 @@ def cmd_search(args):
         print(f"    {r['snippet']}\n")
 
 
+def cmd_git(args):
+    """Run git operations."""
+    from keanu.abilities.hands.git import GitAbility
+    ab = GitAbility()
+    ctx = {"op": args.op}
+    if args.file:
+        ctx["file"] = args.file
+    if args.n:
+        ctx["n"] = args.n
+    if args.name:
+        ctx["name"] = args.name
+    if args.message:
+        ctx["message"] = args.message
+    if args.staged:
+        ctx["staged"] = True
+    if args.sub:
+        ctx["sub"] = args.sub
+    if args.files:
+        ctx["files"] = args.files
+    result = ab.execute("", ctx)
+    if result["success"]:
+        print(f"\n{result['result']}\n")
+    else:
+        print(f"\n  Error: {result['result']}\n")
+
+
+def cmd_test(args):
+    """Run test operations."""
+    from keanu.abilities.hands.test import TestAbility
+    ab = TestAbility()
+    ctx = {"op": args.op}
+    if args.target:
+        ctx["target"] = args.target
+    if args.files:
+        ctx["files"] = args.files
+    result = ab.execute("", ctx)
+    print(f"\n{result['result']}\n")
+    if result["data"].get("failures"):
+        print(f"  Failures ({result['data']['failure_count']}):")
+        for f in result["data"]["failures"]:
+            print(f"    {f['file']}::{f['test']} - {f['error']}")
+        print()
+
+
 def cmd_converge(args):
     from keanu.converge.engine import run
     result = run(args.question, legend=args.legend, model=args.model, verbose=True)
@@ -673,7 +717,7 @@ def cmd_abilities(args):
     from keanu.abilities import list_abilities, get_grimoire
     abilities = list_abilities()
     grimoire = get_grimoire()
-    hands = {"read", "write", "edit", "search", "ls", "run"}
+    hands = {"read", "write", "edit", "search", "ls", "run", "git", "test"}
     world = {"fuse", "recall", "soulstone"}
     categories = [
         ("SEEING", [a for a in abilities if a["name"] not in hands and a["name"] not in world]),
@@ -738,6 +782,41 @@ def cmd_mistakes(args):
         print(f"\n  No forgeable patterns yet (need 3+ repeats)")
     else:
         print(f"\n  No mistakes recorded yet. Start using craft.")
+    print()
+
+
+def cmd_deps(args):
+    """Show dependency graph stats."""
+    from keanu.deps import stats as dep_stats, find_circular, external_deps
+    root = args.root or "."
+
+    if args.who:
+        from keanu.deps import who_imports
+        importers = who_imports(args.who, root)
+        if importers:
+            print(f"\n  Files that import {args.who}:\n")
+            for f in sorted(importers):
+                print(f"    {f}")
+        else:
+            print(f"\n  Nothing imports {args.who}")
+        print()
+        return
+
+    s = dep_stats(root)
+    print(f"\n  DEPENDENCY GRAPH\n")
+    print(f"  files:      {s['files']}")
+    print(f"  edges:      {s['edges']}")
+    print(f"  external:   {s['external']} packages")
+    print(f"  avg imports: {s['avg_imports']} per file")
+    if s.get("hubs"):
+        print(f"\n  Most imported (hubs):")
+        for h in s["hubs"][:5]:
+            print(f"    {h['file']:<40} {h['imported_by']} importers")
+    cycles = find_circular(root)
+    if cycles:
+        print(f"\n  Circular imports ({len(cycles)}):")
+        for c in cycles[:3]:
+            print(f"    {' -> '.join(c)}")
     print()
 
 
@@ -1082,6 +1161,11 @@ def _build_parsers(subparsers):
     p = subparsers.add_parser("mistakes", help="Mistake patterns and stats")
     p.add_argument("--clear", action="store_true", help="Clear stale mistakes")
     p.set_defaults(func=cmd_mistakes)
+
+    p = subparsers.add_parser("deps", help="Dependency graph stats")
+    p.add_argument("--root", default="", help="Project root (default: cwd)")
+    p.add_argument("--who", default="", help="Who imports this file?")
+    p.set_defaults(func=cmd_deps)
 
     p = subparsers.add_parser("forge", help="Scaffold ability or show misses")
     p.add_argument("name", nargs="?", default="")

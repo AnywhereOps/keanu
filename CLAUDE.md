@@ -65,6 +65,10 @@ src/keanu/
                            auto-classifies, detects patterns, flags forgeable.
     metrics.py             convergence metrics. tracks fire (LLM) vs ash
                            (ability) ratio over time. the thermometer.
+    errors.py              error parser. Python tracebacks, pytest failures,
+                           JS errors, Go panics -> structured ParsedError.
+    deps.py                dependency graph. AST-based import parsing,
+                           who_imports, find_circular, external_deps.
 
     legends/               who answers when you ask.
         __init__.py        Legend dataclass + registry. load_legend(name).
