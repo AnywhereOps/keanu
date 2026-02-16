@@ -16,7 +16,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Optional
 
-from keanu.abilities import _REGISTRY, list_abilities
+from keanu.abilities import _REGISTRY, list_abilities, record_cast
 from keanu.oracle import call_oracle
 from keanu.hero.feel import Feel, FeelResult
 from keanu.log import info, warn, debug
@@ -261,6 +261,13 @@ class AgentLoop:
                 )
             except Exception as e:
                 exec_result = {"success": False, "result": str(e), "data": {}}
+
+            if exec_result["success"]:
+                if ab.cast_line:
+                    info("cast", ab.cast_line)
+                is_new = record_cast(action)
+                if is_new:
+                    info("cast", f"ability unlocked: {action}")
 
             step = Step(
                 turn=turn, action=action,

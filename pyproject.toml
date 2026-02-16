@@ -31,9 +31,9 @@ classifiers = [
 keanu = "keanu.cli:main"
 
 [project.urls]
-Homepage = "https://anywhereops.github.io/keanu/"
-Repository = "https://github.com/anywhereops/keanu"
-Documentation = "https://anywhereops.github.io/keanu/"
+Homepage = "https://anywhereops.github.io/silverado/"
+Repository = "https://github.com/anywhereops/silverado"
+Documentation = "https://anywhereops.github.io/silverado/"
 
 [dependency-groups]
 dev = [

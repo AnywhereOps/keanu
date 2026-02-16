@@ -16,7 +16,7 @@ from keanu.memory.memberberry import (
 )
 from keanu.memory.gitstore import GitStore, LOG_IMPORTANCE, DEFAULT_HERO
 from keanu.memory.disagreement import Disagreement, DisagreementTracker
-from keanu.memory.bridge import recall_via_openpaw, openpaw_available
+from keanu.memory.bridge import should_capture, detect_category, capture_from_conversation
 
 
 def _tmp_store():
@@ -237,99 +237,36 @@ class TestDisagreement:
         assert d.timestamp
 
     def test_tracker_record(self, tmp_path):
-        with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
-             patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
-             patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
-             patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"):
-            store = MemberberryStore()
-            tracker = DisagreementTracker(store)
-            with patch("keanu.detect.engine.detect_emotion", return_value=[]):
-                d = tracker.record("regex vs vectors", "regex is fine", "vectors for consistency")
-            assert d.topic == "regex vs vectors"
-            assert d.id
-            assert len(store.memories) == 1
-            assert store.memories[0]["memory_type"] == "decision"
-            assert "disagreement" in store.memories[0]["tags"]
+        tracker = DisagreementTracker(store=None)
+        with patch("keanu.detect.engine.detect_emotion", return_value=[]), \
+             patch("keanu.log.remember") as mock_remember:
+            d = tracker.record("regex vs vectors", "regex is fine", "vectors for consistency")
+        assert d.topic == "regex vs vectors"
+        assert d.id
+        mock_remember.assert_called_once()
+        call_kwargs = mock_remember.call_args
+        assert call_kwargs.kwargs["memory_type"] == "decision"
+        assert "disagreement" in call_kwargs.kwargs["tags"]
 
     def test_tracker_resolve(self, tmp_path):
-        with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
-             patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
-             patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
-             patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"):
-            store = MemberberryStore()
-            tracker = DisagreementTracker(store)
-            with patch("keanu.detect.engine.detect_emotion", return_value=[]):
-                d = tracker.record("test topic", "human says", "ai says")
-                result = tracker.resolve(d.id, "ai", resolved_by="drew")
-            assert result is True
-            assert len(store.memories) == 2  # original + resolution lesson
-            lesson = store.memories[1]
-            assert lesson["memory_type"] == "lesson"
-            assert "grievance-resolved" in lesson["tags"]
+        tracker = DisagreementTracker(store=None)
+        with patch("keanu.detect.engine.detect_emotion", return_value=[]), \
+             patch("keanu.log.remember") as mock_remember, \
+             patch("keanu.log.recall", return_value=[{"content": "test"}]):
+            d = tracker.record("test topic", "human says", "ai says")
+            result = tracker.resolve(d.id, "ai", resolved_by="drew")
+        assert result is True
+        assert mock_remember.call_count == 2  # record + resolve
+        resolve_call = mock_remember.call_args
+        assert resolve_call.kwargs["memory_type"] == "lesson"
+        assert "grievance-resolved" in resolve_call.kwargs["tags"]
 
     def test_tracker_stats_empty(self, tmp_path):
-        with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
-             patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
-             patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
-             patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"):
-            store = MemberberryStore()
-            tracker = DisagreementTracker(store)
+        tracker = DisagreementTracker(store=None)
+        with patch("keanu.log.recall", return_value=[]):
             s = tracker.stats()
-            assert s["total"] == 0
-            assert s["alerts"] == []
-
-
-class TestBridge:
-    def test_recall_via_openpaw_success(self):
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = json.dumps({
-            "results": [
-                {"score": 0.85, "path": "drew/2026-02.jsonl", "snippet": "[goal]\nship v1", "startLine": 1, "endLine": 1}
-            ]
-        })
-        with patch("keanu.memory.bridge.subprocess.run", return_value=mock_result):
-            results = recall_via_openpaw("ship")
-        assert len(results) == 1
-        assert results[0]["score"] == 0.85
-
-    def test_recall_via_openpaw_failure(self):
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        with patch("keanu.memory.bridge.subprocess.run", return_value=mock_result):
-            results = recall_via_openpaw("ship")
-        assert results == []
-
-    def test_recall_via_openpaw_not_found(self):
-        with patch("keanu.memory.bridge.subprocess.run", side_effect=FileNotFoundError):
-            results = recall_via_openpaw("ship")
-        assert results == []
-
-    def test_openpaw_available_true(self):
-        openpaw_available(_reset=True)
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        with patch("keanu.memory.bridge.subprocess.run", return_value=mock_result):
-            result = openpaw_available(_reset=True)
-        assert result is True
-
-    def test_openpaw_available_false(self):
-        openpaw_available(_reset=True)
-        with patch("keanu.memory.bridge.subprocess.run", side_effect=FileNotFoundError):
-            result = openpaw_available(_reset=True)
-        assert result is False
-
-    def test_recall_fallback_to_local(self, tmp_path):
-        with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
-             patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
-             patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
-             patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"):
-            store = MemberberryStore()
-            store.remember(Memory(content="ship v1", memory_type="goal", tags=["build"]))
-            with patch("keanu.memory.bridge.subprocess.run", side_effect=FileNotFoundError):
-                results = store.recall(query="ship")
-            assert len(results) == 1
-            assert results[0]["content"] == "ship v1"
+        assert s["total"] == 0
+        assert s["alerts"] == []
 
 
 class TestBridgeCapture:
@@ -351,53 +288,24 @@ class TestBridgeCapture:
 
     def test_capture_from_conversation(self):
         from keanu.memory.bridge import capture_from_conversation
-        with patch("keanu.memory.bridge.openpaw_available", return_value=False):
-            messages = [
-                "hello there",
-                "remember to always run tests",
-                "I prefer using python",
-                "just chatting",
-                "important: never skip code review",
-            ]
-            captures = capture_from_conversation(messages)
-            assert len(captures) == 3
-            # "remember to always run tests" has no preference keywords, defaults to fact
-            assert captures[0]["memory_type"] == "fact"
-            # "I prefer using python" triggers "prefer" keyword
-            assert captures[1]["memory_type"] == "preference"
-            assert captures[1]["content"] == "I prefer using python"
+        messages = [
+            "hello there",
+            "remember to always run tests",
+            "I prefer using python",
+            "just chatting",
+            "important: never skip code review",
+        ]
+        captures = capture_from_conversation(messages)
+        assert len(captures) == 3
+        assert captures[0]["memory_type"] == "fact"
+        assert captures[1]["memory_type"] == "preference"
+        assert captures[1]["content"] == "I prefer using python"
 
     def test_capture_max_five(self):
         from keanu.memory.bridge import capture_from_conversation
-        with patch("keanu.memory.bridge.openpaw_available", return_value=False):
-            messages = [f"remember item {i}" for i in range(10)]
-            captures = capture_from_conversation(messages)
-            assert len(captures) <= 5
-
-
-class TestContextInject:
-    def test_context_inject_no_openpaw(self):
-        from keanu.memory.bridge import context_inject
-        with patch("keanu.memory.bridge.openpaw_available", return_value=False):
-            result = context_inject("test prompt")
-        assert result == ""
-
-    def test_context_inject_with_results(self):
-        from keanu.memory.bridge import context_inject
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = json.dumps({
-            "results": [
-                {"score": 0.9, "snippet": "[goal]\nship v1"},
-                {"score": 0.7, "snippet": "[lesson]\nalways test"},
-            ]
-        })
-        with patch("keanu.memory.bridge._openpaw_checked", True), \
-             patch("keanu.memory.bridge.subprocess.run", return_value=mock_result):
-            result = context_inject("what should I do")
-        assert "<relevant-memories>" in result
-        assert "ship v1" in result
-        assert "always test" in result
+        messages = [f"remember item {i}" for i in range(10)]
+        captures = capture_from_conversation(messages)
+        assert len(captures) <= 5
 
 
 class TestConfigAudit:
@@ -439,12 +347,7 @@ class TestLedger:
     """tests for gitstore log sink (the ledger)."""
 
     def _make_store(self, tmp_path):
-        with patch("keanu.memory.memberberry.MEMBERBERRY_DIR", tmp_path), \
-             patch("keanu.memory.memberberry.MEMORIES_FILE", tmp_path / "memories.json"), \
-             patch("keanu.memory.memberberry.PLANS_FILE", tmp_path / "plans.json"), \
-             patch("keanu.memory.memberberry.CONFIG_FILE", tmp_path / "config.json"), \
-             patch("keanu.memory.gitstore.SHARED_DIR", tmp_path):
-            store = GitStore(namespace="test", repo_dir=tmp_path)
+        store = GitStore(namespace="test", repo_dir=tmp_path)
         return store
 
     def test_append_log_writes_jsonl(self, tmp_path):
@@ -482,12 +385,11 @@ class TestLedger:
         store.append_log("test", "info", "two")
         assert store._log_count == 2
 
-    def test_log_shard_separate_from_memory(self, tmp_path):
+    def test_log_shard_path(self, tmp_path):
         store = self._make_store(tmp_path)
         log_path = store._log_shard_path()
-        mem_path = store._shard_path()
         assert "logs" in str(log_path)
-        assert "logs" not in str(mem_path)
+        assert log_path.suffix == ".jsonl"
 
     def test_session_hero(self, tmp_path):
         store = self._make_store(tmp_path)
@@ -513,14 +415,14 @@ class TestLedger:
             store.flush()
             mock_commit.assert_not_called()
 
-    def test_recall_finds_logs(self, tmp_path):
+    def test_recall_finds_logs_via_log(self, tmp_path):
+        """recall searches JSONL files written by the sink."""
+        from keanu.log import recall as log_recall
         store = self._make_store(tmp_path)
         store.append_log("scan", "info", "scanned document.md for patterns")
-        # reload shared memories to pick up log entries
-        store._shared_memories = store._load_all_shared()
-        results = store.recall(query="scanned document")
+        results = log_recall(query="scanned document", log_dir=tmp_path)
         assert len(results) >= 1
-        assert any(r["memory_type"] == "log" for r in results)
+        assert any(r["content"] == "scanned document.md for patterns" for r in results)
 
     def test_log_importance_levels(self):
         assert LOG_IMPORTANCE["debug"] == 1

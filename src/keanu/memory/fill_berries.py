@@ -18,7 +18,8 @@ import json
 import sys
 import re
 from pathlib import Path
-from keanu.memory.memberberry import Memory, MemberberryStore, MemoryType
+from keanu.memory.memberberry import MemoryType
+from keanu.log import remember as log_remember
 
 VALID_TYPES = [e.value for e in MemoryType]
 VALID_TYPES_STR = ", ".join(VALID_TYPES)
@@ -235,7 +236,6 @@ def bulk_import(filepath: str):
         print("Generate a template with: python3 fill_berries.py template > my_memories.jsonl")
         sys.exit(1)
 
-    store = MemberberryStore()
     imported = 0
     errors = 0
 
@@ -266,16 +266,13 @@ def bulk_import(filepath: str):
                 errors += 1
                 continue
 
-            memory = Memory(
-                content=content,
+            log_remember(
+                content,
                 memory_type=mtype,
                 tags=data.get("tags", []),
                 importance=min(max(int(data.get("importance", 5)), 1), 10),
-                context=data.get("context", ""),
                 source=data.get("source", "bulk_import"),
             )
-
-            store.remember(memory)
             imported += 1
             print(f"  [{mtype[:4].upper()}] {content}")
 
@@ -288,8 +285,6 @@ def bulk_import(filepath: str):
 
 def interactive():
     """Walk through adding memories one at a time."""
-    store = MemberberryStore()
-
     print("\n  fill_berries interactive mode")
     print("  Let's set the context first.\n")
 
@@ -330,7 +325,6 @@ def interactive():
 
             if content.lower() in ("done", "q", "quit"):
                 print(f"\n  Done early. Added {count} memories.")
-                store._save_memories()
                 return
             if content.lower() in ("skip", "s", ""):
                 continue
@@ -349,18 +343,10 @@ def interactive():
             except ValueError:
                 importance = 5
 
-            memory = Memory(
-                content=content,
-                memory_type=mtype,
-                tags=tags,
-                importance=importance,
-                context=f"{person or 'user'} / {project or 'general'}",
-                source="interactive",
-            )
-
-            mid = store.remember(memory)
+            log_remember(content, memory_type=mtype, tags=tags,
+                         importance=importance, source="interactive")
             count += 1
-            print(f"  Stored! [{mtype}] id:{mid}\n")
+            print(f"  Stored! [{mtype}]\n")
 
     # Archetype focus prompts
     if arch.get("focus_prompts"):
@@ -373,21 +359,13 @@ def interactive():
             if content.lower() in ("skip", "s", ""):
                 continue
 
-            memory = Memory(
-                content=content,
-                memory_type="fact",
-                tags=suggested_tags[:3] or ["project"],
-                importance=7,
-                context=f"Project context: {project or 'general'}",
-                source="interactive",
-            )
-            store.remember(memory)
+            log_remember(content, memory_type="fact",
+                         tags=suggested_tags[:3] or ["project"],
+                         importance=7, source="interactive")
             count += 1
             print(f"  Stored! [fact] project context\n")
 
     print(f"\nDone. Added {count} memories.")
-    s = store.stats()
-    print(f"Total memories in store: {s['total_memories']}")
 
 
 # ============================================================
@@ -486,7 +464,6 @@ def parse_markdown(filepath: str):
     lines = text.split("\n")
     tag_map = extract_tags_from_headers(text)
 
-    store = MemberberryStore()
     candidates = []
 
     for i, line in enumerate(lines):
@@ -518,14 +495,9 @@ def parse_markdown(filepath: str):
     if choice == "y":
         imported = 0
         for c in candidates:
-            memory = Memory(
-                content=c["content"],
-                memory_type=c["memory_type"],
-                tags=c["tags"],
-                importance=5,
-                source=f"parsed:{filepath}",
-            )
-            store.remember(memory)
+            log_remember(c["content"], memory_type=c["memory_type"],
+                         tags=c["tags"], importance=5,
+                         source=f"parsed:{filepath}")
             imported += 1
         print(f"  Imported {imported} memories.")
 
@@ -535,14 +507,9 @@ def parse_markdown(filepath: str):
             print(f"\n  [{c['memory_type'][:4].upper()}] {c['content']}")
             yn = input("  Import? (y/n/edit) > ").strip().lower()
             if yn == "y":
-                memory = Memory(
-                    content=c["content"],
-                    memory_type=c["memory_type"],
-                    tags=c["tags"],
-                    importance=5,
-                    source=f"parsed:{filepath}",
-                )
-                store.remember(memory)
+                log_remember(c["content"], memory_type=c["memory_type"],
+                             tags=c["tags"], importance=5,
+                             source=f"parsed:{filepath}")
                 imported += 1
             elif yn == "edit":
                 new_content = input("  New content > ").strip() or c["content"]
@@ -552,14 +519,11 @@ def parse_markdown(filepath: str):
                 imp = input("  Importance 1-10 [5] > ").strip()
                 importance = int(imp) if imp else 5
 
-                memory = Memory(
-                    content=new_content,
-                    memory_type=new_type if new_type in VALID_TYPES else c["memory_type"],
-                    tags=tags,
-                    importance=min(max(importance, 1), 10),
-                    source=f"parsed:{filepath}",
-                )
-                store.remember(memory)
+                log_remember(new_content,
+                             memory_type=new_type if new_type in VALID_TYPES else c["memory_type"],
+                             tags=tags,
+                             importance=min(max(importance, 1), 10),
+                             source=f"parsed:{filepath}")
                 imported += 1
         print(f"\n  Imported {imported} memories.")
     else:

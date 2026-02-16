@@ -9,6 +9,7 @@ class DetectAbility(Ability):
     name = "scry"
     description = "See hidden patterns without touching the source"
     keywords = ["detect", "check for", "scan for", "sycophancy", "empathy", "pattern", "scry"]
+    cast_line = "scry peers into the weave..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         p = prompt.lower()

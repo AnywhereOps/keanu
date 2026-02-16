@@ -9,6 +9,7 @@ class SignalAbility(Ability):
     name = "decipher"
     description = "Decode the signal. Rogue energy."
     keywords = ["signal", "emoji", "decode", "vibe", "reading", "channel", "decipher"]
+    cast_line = "decipher reads the signal..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         p = prompt.lower()

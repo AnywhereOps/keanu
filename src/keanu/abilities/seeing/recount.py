@@ -9,6 +9,7 @@ class StatsAbility(Ability):
     name = "recount"
     description = "Count what you have. Day of reckoning."
     keywords = ["stats", "statistics", "how many", "count", "numbers", "recount"]
+    cast_line = "recount tallies the hoard..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         p = prompt.lower()

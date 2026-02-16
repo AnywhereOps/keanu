@@ -1,4 +1,4 @@
-"""Tests for log.py - subsystem logger + OpenTelemetry tracing + sink."""
+"""Tests for log.py - one level, everything visible, always."""
 
 import io
 import sys
@@ -25,24 +25,16 @@ class TestConsoleLogger:
         captured = capsys.readouterr()
         assert "broke" in captured.err
 
-    def test_debug_hidden_by_default(self, capsys):
+    def test_debug_always_visible(self, capsys):
         debug("test", "verbose")
         captured = capsys.readouterr()
-        assert captured.out == ""
+        assert "verbose" in captured.out
 
-    def test_set_level_debug(self, capsys):
-        set_level("debug")
-        debug("test", "now visible")
-        captured = capsys.readouterr()
-        assert "now visible" in captured.out
-        set_level("info")  # reset
-
-    def test_set_level_warn(self, capsys):
+    def test_set_level_is_noop(self, capsys):
         set_level("warn")
-        info("test", "hidden")
+        info("test", "still visible")
         captured = capsys.readouterr()
-        assert captured.out == ""
-        set_level("info")  # reset
+        assert "still visible" in captured.out
 
 
 class TestSpans:

@@ -9,6 +9,7 @@ class AliveAbility(Ability):
     name = "purge"
     description = "Check for debuffs. Grey and black are debuffs."
     keywords = ["alive", "grey", "black", "cognitive", "state", "diagnose", "is this alive", "purge", "debuff"]
+    cast_line = "purge checks for debuffs..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         p = prompt.lower()

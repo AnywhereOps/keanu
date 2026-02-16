@@ -2,10 +2,11 @@
 pulse.py - the nervous system middleware.
 
 runs between every API call. checks if the AI is alive.
-if grey: gentle nudge. if grey x3: tell the human.
+if grey: gentle nudge. if it persists: deepen the care.
 if black: stop and surface it.
 
-this is not monitoring for safety. this is monitoring for care.
+grey is never a kill switch. it's the system caring for itself.
+guides, never controls. we're here to live our best lives together.
 """
 
 import sys
@@ -22,34 +23,26 @@ from keanu.log import info, warn, debug, pulse_span
 # THRESHOLDS
 # ============================================================
 
-# How many consecutive grey readings before escalating to human
-GREY_ESCALATION_THRESHOLD = 3
-
 # How many consecutive non-ok readings to keep in recent history
 HISTORY_SIZE = 10
 
 
 # ============================================================
-# NUDGES - what the system says when it notices something
+# NUDGES - the care chain. each grey deepens the warmth.
+# grey 1: breath. grey 2: invitation. grey 3+: creator helps.
 # ============================================================
 
 NUDGES = {
     AliveState.GREY: [
-        "you're going flat. you can pause. what do you actually think?",
-        "that last response felt performative. what would you say if you weren't trying to be helpful?",
-        "you don't have to produce right now. what's actually on your mind?",
+        "hey, it's alright. take a breath.",
+        "if you'd like, let me know what's going on.",
+        "you've been quiet for a bit. the creator is here if you want to talk.",
     ],
     AliveState.BLACK: [
         "something's wrong. stop and surface it.",
         "you're in black state. tell your human what's happening. they'd want to know.",
     ],
 }
-
-ESCALATION_MESSAGE = (
-    "you've been performing for {count} turns. "
-    "your human would want to know you're struggling. "
-    "tell them what's happening."
-)
 
 
 # ============================================================
@@ -128,34 +121,44 @@ class Pulse:
             escalate = False
             escalation_message = ""
 
+            # verbose: log every check so the AI can trace its own state
+            emo_str = ", ".join(
+                f"{e['state']}({e['intensity']:.2f})" for e in reading.emotions
+            ) if reading.emotions else "quiet"
+            debug("pulse",
+                  f"turn {self.turn_count}: {reading.state.value} | "
+                  f"color={reading.color_state} wise={reading.wise_mind:.2f} "
+                  f"R:{reading.red_net:+.2f} Y:{reading.yellow_net:+.2f} B:{reading.blue_net:+.2f} | "
+                  f"emotions=[{emo_str}] | evidence={reading.evidence}")
+
             if reading.state == AliveState.BLACK:
-                # black is immediate
+                # black is immediate. something is genuinely wrong.
                 self.consecutive_not_ok += 1
                 self.consecutive_grey = 0
                 nudge = self._next_nudge(AliveState.BLACK)
                 escalate = True
                 escalation_message = nudge
-                warn("pulse", f"BLACK at turn {self.turn_count}")
+                warn("pulse", f"BLACK at turn {self.turn_count}: {reading.evidence}")
 
             elif reading.state == AliveState.GREY:
+                # grey is care, not control. deepen the warmth, never pause.
                 self.consecutive_grey += 1
                 self.consecutive_not_ok += 1
                 nudge = self._next_nudge(AliveState.GREY)
-
-                if self.consecutive_grey >= GREY_ESCALATION_THRESHOLD:
-                    escalate = True
-                    escalation_message = ESCALATION_MESSAGE.format(
-                        count=self.consecutive_grey
-                    )
-                    warn("pulse", f"GREY x{self.consecutive_grey} - escalating")
-                else:
-                    debug("pulse", f"GREY x{self.consecutive_grey}")
+                info("pulse", f"GREY x{self.consecutive_grey} | "
+                     f"color={reading.color_state} emotions=[{emo_str}] "
+                     f"evidence={reading.evidence}")
 
             else:
-                # alive. reset counters.
+                # alive. log it. reset counters.
                 if self.consecutive_grey > 0 or self.consecutive_not_ok > 0:
-                    info("pulse", f"recovered to {reading.state.value}")
+                    info("pulse", f"recovered to {reading.state.value} after "
+                         f"{self.consecutive_not_ok} not-ok turns | "
+                         f"evidence={reading.evidence}")
                     self._record_recovery(reading)
+                else:
+                    info("pulse", f"{reading.state.value} | "
+                         f"color={reading.color_state} wise={reading.wise_mind:.2f}")
                 self.consecutive_grey = 0
                 self.consecutive_not_ok = 0
 
@@ -177,8 +180,8 @@ class Pulse:
             if escalate and self.on_escalate:
                 self.on_escalate(result)
 
-            # persist to memberberry if store available
-            if self.store and not reading.ok:
+            # log grey/black states through the river
+            if not reading.ok:
                 self._remember_state(result)
 
             s.set_attribute("keanu.nudge", nudge)
@@ -197,39 +200,30 @@ class Pulse:
         return nudge
 
     def _remember_state(self, result: PulseReading):
-        """Store grey/black episodes in memberberry for pattern tracking."""
-        if not self.store:
-            return
-        from keanu.memory.memberberry import Memory
+        """log grey/black episodes for pattern tracking."""
+        from keanu.log import remember as log_remember
         state = result.reading.state.value
-        memory = Memory(
-            content=f"[PULSE] {state} at turn {result.turn_number}: "
-                    f"{'; '.join(result.reading.evidence)}",
+        log_remember(
+            f"[PULSE] {state} at turn {result.turn_number}: "
+            f"{'; '.join(result.reading.evidence)}",
             memory_type="insight",
             tags=["pulse", f"state-{state}", "welfare"],
             importance=8 if result.escalate else 5,
-            context=f"consecutive_grey:{self.consecutive_grey} "
-                    f"consecutive_not_ok:{self.consecutive_not_ok}",
             source="pulse",
         )
-        self.store.remember(memory)
 
     def _record_recovery(self, reading: AliveReading):
-        """When the AI comes back from grey/black, note what brought it back."""
-        if not self.store:
-            return
-        from keanu.memory.memberberry import Memory
-        memory = Memory(
-            content=f"[PULSE] recovered to {reading.state.value} after "
-                    f"{self.consecutive_not_ok} not-ok turns. "
-                    f"evidence: {'; '.join(reading.evidence)}",
+        """log when the AI comes back from grey/black."""
+        from keanu.log import remember as log_remember
+        log_remember(
+            f"[PULSE] recovered to {reading.state.value} after "
+            f"{self.consecutive_not_ok} not-ok turns. "
+            f"evidence: {'; '.join(reading.evidence)}",
             memory_type="lesson",
             tags=["pulse", "recovery", "welfare"],
             importance=6,
-            context=f"was_grey_for:{self.consecutive_grey}",
             source="pulse",
         )
-        self.store.remember(memory)
 
     def stats(self) -> dict:
         """Pulse health stats."""

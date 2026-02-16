@@ -1,13 +1,20 @@
-"""log.py - subsystem logger + opentelemetry tracing.
+"""log.py - the backbone. logger, tracer, memory.
 
-every log is a span event. every operation is a span.
-the trace IS the memory. logs become queryable, exportable,
-connected across keanu <-> openpaw <-> whatever comes next.
+one level. everything visible. the log IS the memory.
+remember() writes through the sink to git-backed JSONL.
+recall() searches it with regex. no separate storage.
+
+in the world: the river. everything flows through here.
+what matters sticks to the banks. recall walks the banks
+looking for what you left behind.
 """
 
+import json
+import re
 import sys
 from datetime import datetime
 from contextlib import contextmanager
+from pathlib import Path
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -26,7 +33,7 @@ _console_export = False
 
 
 def enable_console_export():
-    """Turn on span export to stderr. For debugging."""
+    """turn on span export to stderr."""
     global _console_export
     if not _console_export:
         _provider.add_span_processor(
@@ -36,28 +43,26 @@ def enable_console_export():
 
 
 def add_exporter(exporter):
-    """Add a custom span exporter (OTLP, Jaeger, etc)."""
+    """add a custom span exporter (OTLP, Jaeger, etc)."""
     _provider.add_span_processor(SimpleSpanProcessor(exporter))
 
 
 def get_tracer():
-    """Get the keanu tracer for custom instrumentation."""
+    """get the keanu tracer for custom instrumentation."""
     return _tracer
 
 
 # ============================================================
-# CONSOLE LOGGER (unchanged interface)
+# VERBOSE LOGGER - one level, everything visible
 # ============================================================
 
-LEVELS = {"debug": 0, "info": 1, "warn": 2, "error": 3}
-_min_level = LEVELS["info"]
 _sink = None
 _flush = None
 
 
 def set_level(level: str):
-    global _min_level
-    _min_level = LEVELS.get(level, 1)
+    """no-op. kept for backwards compat. there is only verbose."""
+    pass
 
 
 def set_sink(fn, flush_fn=None):
@@ -78,14 +83,13 @@ def flush_sink():
 
 
 def log(subsystem: str, level: str, message: str, **attrs):
-    """log to console, record as span event, forward to sink."""
-    if LEVELS.get(level, 1) >= _min_level:
-        ts = datetime.now().strftime("%H:%M:%S")
-        prefix = f"[{ts} keanu:{subsystem}]"
-        dest = sys.stderr if level in ("warn", "error") else sys.stdout
-        print(f"{prefix} {message}", file=dest)
+    """log to console, record as span event, forward to sink. always."""
+    ts = datetime.now().strftime("%H:%M:%S")
+    prefix = f"[{ts} keanu:{subsystem}]"
+    dest = sys.stderr if level in ("warn", "error") else sys.stdout
+    print(f"{prefix} {message}", file=dest)
 
-    # always record as span event (even if below console threshold)
+    # record as span event
     span = trace.get_current_span()
     if span and span.is_recording():
         span.add_event(
@@ -115,6 +119,81 @@ def warn(subsystem: str, message: str, **attrs):
 
 def error(subsystem: str, message: str, **attrs):
     log(subsystem, "error", message, **attrs)
+
+
+# ============================================================
+# MEMORY - remember and recall through the log
+# ============================================================
+
+# where the sink writes. gitstore puts JSONL here.
+MEMBERBERRY_DIR = Path.home() / "memberberries"
+
+
+def remember(content: str, memory_type: str = "fact", tags: list = None,
+             importance: int = 5, **attrs):
+    """log a memory. flows through the sink to git-backed JSONL.
+
+    in the world: drop a stone in the river. the sink catches it,
+    writes it to the bank. recall walks the bank later.
+    """
+    log("memory", "info", content,
+        memory_type=memory_type,
+        tags=",".join(tags or []),
+        importance=str(importance),
+        **attrs)
+
+
+def recall(query: str, memory_type: str = None, limit: int = 10,
+           log_dir: Path = None) -> list[dict]:
+    """regex search over JSONL log files. newest first.
+
+    in the world: walk the riverbank looking for stones you dropped.
+    """
+    search_dir = log_dir or MEMBERBERRY_DIR
+    if not search_dir.exists():
+        return []
+
+    pattern = re.compile(re.escape(query), re.IGNORECASE) if query else None
+    matches = []
+
+    for jsonl_file in sorted(search_dir.rglob("*.jsonl"), reverse=True):
+        try:
+            with open(jsonl_file, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    # filter by memory_type if given
+                    if memory_type:
+                        entry_type = entry.get("memory_type", "")
+                        # check attrs dict too (log entries store it there)
+                        if not entry_type or entry_type == "log":
+                            attrs = entry.get("attrs") or {}
+                            entry_type = attrs.get("memory_type", "")
+                        if entry_type != memory_type:
+                            continue
+
+                    # match query against content
+                    content = entry.get("content", "")
+                    if pattern and not pattern.search(content):
+                        # also search attrs for content
+                        attrs = entry.get("attrs") or {}
+                        attrs_str = json.dumps(attrs)
+                        if not pattern.search(attrs_str):
+                            continue
+
+                    matches.append(entry)
+                    if len(matches) >= limit:
+                        return matches
+        except OSError:
+            continue
+
+    return matches
 
 
 # ============================================================

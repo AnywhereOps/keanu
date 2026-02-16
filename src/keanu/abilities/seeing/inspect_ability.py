@@ -9,6 +9,7 @@ class HealthAbility(Ability):
     name = "inspect"
     description = "Inspect target. Gear, stats, everything."
     keywords = ["health", "healthz", "status", "system check", "diagnostic", "is everything ok", "inspect"]
+    cast_line = "inspect opens the dashboard..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         p = prompt.lower()

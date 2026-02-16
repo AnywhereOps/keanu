@@ -4,6 +4,139 @@ Words become vectors once. Then it's pure math forever. Strings are scaffolding.
 
 Keanu reads text through three color lenses, sees what the words alone can't, compresses what matters, and finds truth where opposing views collide. Built on Convergence Theory: reality operates on duality. Every tool here maps back to that.
 
+## Quick Start
+
+```bash
+pip install -e .         # install from source
+keanu bake               # train lenses from examples (needs chromadb)
+keanu                    # launch the interactive REPL
+```
+
+You need an API key for agent commands. Set `ANTHROPIC_API_KEY` in your `.env` or environment.
+
+## CLI Commands
+
+### The REPL
+
+```bash
+keanu                    # launches the interactive terminal
+```
+
+Type a task, keanu figures out how to do it. Uses the oracle (LLM) and abilities (tools) together.
+
+### Agent Loops
+
+These are the "fire" commands. They call the oracle (LLM) to reason and act.
+
+```bash
+keanu do "refactor the auth module"       # general-purpose agent loop
+keanu agent "what is justice?"            # convergence agent (duality synthesis)
+keanu craft "add a login form"            # specialized code-writing agent
+keanu dream "ship v1 by March"            # break a goal into phases and steps
+keanu prove "our cache hit rate is 90%"   # test a hypothesis with evidence
+keanu speak "technical content" -a friend # translate content for an audience
+keanu converge "hard question"            # duality synthesis (no agent loop)
+```
+
+Common flags for agent commands:
+
+| Flag | Short | What it does |
+|------|-------|--------------|
+| `--legend` | `-l` | Who answers: `creator` (default), `friend`, `architect` |
+| `--model` | `-m` | Model name (default: whatever the oracle picks) |
+| `--max-turns` | | Max reasoning turns before stopping (default: 25) |
+| `--no-memory` | | Don't read/write memberberry store |
+| `--verbose` | `-v` | Show step-by-step action log |
+
+### Text Analysis
+
+These are "ash" commands. No LLM needed, pure math after baking.
+
+```bash
+keanu scan document.md                # three-primary color reading
+keanu scan doc1.md doc2.md --json     # scan multiple files, JSON output
+keanu detect sycophancy file.md       # run one pattern detector
+keanu detect all file.md --json       # run all 8 detectors
+keanu alive "text to check"           # ALIVE-GREY-BLACK diagnostic
+keanu alive --file document.md        # diagnose a file
+keanu signal "emoji-string"           # decode emoji signal (3 channels)
+keanu connect a.md b.md               # cross-source alignment
+keanu compress module.py              # COEF compression
+keanu bake                            # train lenses from examples
+```
+
+Available detectors: `sycophancy`, `capture`, `generalization`, `zero_sum`, `safety_theater`, `inconsistency`, `grievance`, `stability`, or `all`.
+
+### Memory
+
+The memberberry engine. Store what matters, recall by relevance, plan from what you know.
+
+```bash
+keanu remember goal "ship v1"              # store a memory
+keanu remember decision "use postgres"     # types: goal, decision, lesson, commitment, observation, context
+keanu remember lesson "test before deploy" --tags "eng,process" --importance 8
+
+keanu recall "what am I building"          # search by relevance
+keanu recall --type goal                   # filter by type
+keanu recall --tags "eng" --limit 5        # filter by tags
+
+keanu plan "next sprint"                   # generate plan from memories
+keanu plan "Q2 roadmap" --days 90          # longer planning horizon
+keanu plans                                # list all plans
+keanu plans --status active                # filter: draft, active, blocked, done, dropped
+
+keanu stats                                # memory stats
+keanu deprioritize <memory-id>             # lower importance (nothing is deleted)
+keanu fill interactive                     # guided memory ingestion
+keanu fill bulk memories.jsonl             # bulk import
+keanu fill parse notes.md                  # parse markdown into memories
+```
+
+Aliases: `r` for remember, `q` for recall, `p` for plan, `dp` for deprioritize.
+
+### Shared Memory
+
+Git-backed JSONL memory for team use.
+
+```bash
+keanu remember goal "team goal" --shared   # store in shared repo
+keanu recall "roadmap" --shared            # search shared memories
+keanu sync                                 # pull latest shared memories
+```
+
+### Disagreement Tracking
+
+Both sides get vectors. Bilateral accountability.
+
+```bash
+keanu disagree record --topic "auth approach" --human "use JWT" --ai "use sessions"
+keanu disagree resolve --id <id> --winner human    # human, ai, or compromise
+keanu disagree stats                               # who's been right?
+keanu disagree list                                # show all disagreements
+```
+
+### Abilities and Forge
+
+The action bar. Each ability is ash (no LLM needed). The forge builds new ones.
+
+```bash
+keanu abilities                            # list all registered abilities
+keanu forge "fetch" --desc "HTTP fetcher" --keywords "fetch,http,get"
+keanu forge --misses                       # show what abilities are missing
+```
+
+The forge flywheel: router misses get logged. `forge --misses` shows patterns. `forge` scaffolds the ability. Each new ability shrinks the miss log.
+
+### System
+
+```bash
+keanu healthz                              # full system health dashboard
+keanu todo                                 # scan project, generate TODO.md
+keanu decode --last 10                     # decode recent COEF seeds
+keanu decode <hash>                        # decode a specific seed
+keanu decode --subsystem memory            # filter by subsystem
+```
+
 ## How It Sees
 
 Three primaries. Each carries light and shadow.
@@ -37,72 +170,57 @@ When all three align:
 
 **Wise mind** = balance x fullness. Not a score. The observer.
 
-## What It Does
-
-**`keanu scan`** reads text through the triple helix. Returns color readings per line, convergences (multiple primaries firing), and tensions (one primary alone).
-
-**`keanu detect`** runs 8 pattern detectors (sycophancy, capture, generalization, zero_sum, safety_theater, inconsistency, grievance, stability) via chromadb vectors. Run one or all.
-
-**`keanu converge`** takes a question, finds two orthogonal dualities from a curated library via RAG, synthesizes each, then converges the syntheses into something neither could reach alone. Works with Ollama (local) or Claude API.
-
-**`keanu connect`** finds common ground between two sources and surfaces the unique signal each one carries.
-
-**`keanu compress`** applies COEF (Compressed Observation-Execution Framework). Don't send what the other side already knows. Content-addressable DNS, 9-verb instruction language, pattern codec, wire format: `clone:src=x | swap | rename:old=a new=b | verify:hash`
-
-**`keanu signal`** decodes emoji sequences through three channels: what was said, what's being felt, what it means. Maps to the ALIVE-GREY-BLACK diagnostic spectrum. Detects composable subsets, expands across domains (philosophy, religion, science, project).
-
-**`keanu remember / recall / plan`** the memberberry engine. Store memories (goals, decisions, lessons, commitments), recall by relevance, generate actionable plans with deadlines.
-
-**`keanu bake`** trains the lenses from examples into chromadb vectors. Run once after editing examples. After that, everything is pure math.
-
-## Quick Start
-
-```bash
-pip install keanu        # or: uv add keanu
-keanu bake               # train lenses from examples
-keanu scan document.md   # three-primary reading
-keanu converge "question"
-```
-
 ## Architecture
 
 ```
 src/keanu/
-    scan/               # Read (embedding-based)
-        helix.py        # triple-lens scanner
-        bake.py         # trains examples into vectors
-    detect/             # Interpret (color theory)
-        mood.py         # primaries -> synthesis states
-        engine.py       # 8 vector pattern detectors
-    compress/           # Transmit (Shannon/COEF)
-        dns.py          # content-addressable store
-        instructions.py # 9-verb instruction language
-        codec.py        # pattern registry, encoder/decoder
-        executor.py     # pipeline executor
-        exporter.py     # COEF span exporter (memory <-> logging)
-        stack.py        # combined codec/dns/vectors layer
-        vectors.py      # vector storage abstraction
-    converge/           # Truth (duality synthesis)
-        graph.py        # 10 root + derived dualities
-        engine.py       # RAG split -> 3 convergence passes
-        connection.py   # cross-source alignment
-    signal/             # Voice (human interface)
-        vibe.py         # emoji codec, ALIVE states, 3-channel reading
-    memory/             # Remember (memberberry engine)
-        memberberry.py  # store, recall, plan
-        fill_berries.py # bulk ingestion
-        gitstore.py     # git-backed shared JSONL memory
-        disagreement.py # bilateral disagreement tracker
-        bridge.py       # openpaw hybrid search bridge
-    alive.py            # ALIVE-GREY-BLACK diagnostic
-    log.py              # structured logging + COEF span export
-    pulse.py            # pulse middleware, healthz
-    cli.py              # entry point
+    oracle.py              # single throat for all LLM calls
+    wellspring.py           # single pool for all vector access
+    alive.py                # ALIVE-GREY-BLACK diagnostic
+    cli.py                  # every command starts here
+    log.py                  # structured logging + COEF span export
+    pulse.py                # health check middleware
+
+    legends/                # who answers when you ask
+        creator.py          # the AI (Claude, DeepSeek, etc.)
+        friend.py           # plain talk, no filter
+        architect.py        # Drew. knows the internals.
+
+    hero/                   # the nervous system
+        repl.py             # interactive terminal
+        do.py               # general-purpose ReAct agent loop
+        loop.py             # convergence agent (duality synthesis)
+        feel.py             # runs on every LLM call, checks aliveness
+        breathe.py          # task decomposition into duality pairs
+        dream.py            # goal -> phases -> steps
+        craft.py            # specialized code-writing agent
+        speak.py            # translate content for audiences
+        prove.py            # hypothesis testing with evidence
+        ide.py              # MCP client for VSCode extension
+
+    abilities/              # the action bar (ash, no LLM)
+        router.py           # routes prompts to abilities or oracle
+        hands.py            # read, write, edit, search, ls, run
+        forge.py            # scaffold new abilities
+        miss_tracker.py     # captures router misses
+        + 9 seeing abilities (keyword-triggered)
+        + fuse.py (convergence as an ability)
+
+    scan/                   # three-primary color model
+    detect/                 # 8 pattern detectors + mood synthesis
+    compress/               # COEF compression framework
+    converge/               # duality synthesis engine
+    signal/                 # emoji codec + cognitive state
+    memory/                 # memberberry engine + git-backed store
 ```
 
-```
-bake (train) -> scan (embed) -> detect (interpret) -> compress / converge
-```
+## Dependencies
+
+- chromadb (vector storage for scan and detect)
+- requests (LLM API calls through the oracle)
+- rich (REPL terminal interface)
+- python-dotenv (loads .env for API keys)
+- Python 3.10+
 
 ## The Signal
 

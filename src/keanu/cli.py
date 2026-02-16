@@ -28,7 +28,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 
-from keanu.log import info, warn, set_level
+from keanu.log import info, warn
 
 
 def cmd_scan(args):
@@ -48,9 +48,8 @@ def cmd_bake(args):
 def cmd_converge(args):
     """Run six lens convergence on a question."""
     from keanu.converge.engine import run
-    verbose = getattr(args, "verbose", False)
     result = run(args.question, legend=args.legend, model=args.model,
-                 verbose=verbose)
+                 verbose=True)
 
     if not result.ok:
         print(f"Could not converge: {result.error or 'no synthesis'}")
@@ -149,30 +148,24 @@ def _get_store(shared=False):
 
 def cmd_remember(args):
     """Store a memory."""
-    from keanu.memory import Memory
-    store = _get_store(args.shared)
+    from keanu.log import remember as log_remember
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else []
-    memory = Memory(
-        content=args.content,
+    log_remember(
+        args.content,
         memory_type=args.type,
         tags=tags,
         importance=args.importance,
-        context=args.context or "",
         source="cli",
     )
-    mid = store.remember(memory)
-    info("memory", f"remembered [{args.type}] {args.content[:60]}")
     print(f"  Remembered [{args.type}] {args.content}")
-    print(f"  id: {mid} | importance: {args.importance} | tags: {', '.join(tags) or 'none'}")
+    print(f"  importance: {args.importance} | tags: {', '.join(tags) or 'none'}")
 
 
 def cmd_recall(args):
     """Recall relevant memories."""
-    store = _get_store(args.shared)
-    tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else None
-    results = store.recall(
+    from keanu.log import recall as log_recall
+    results = log_recall(
         query=args.query or "",
-        tags=tags,
         memory_type=args.type,
         limit=args.limit,
     )
@@ -183,12 +176,16 @@ def cmd_recall(args):
     info("memory", f"recall '{args.query or 'all'}' -> {len(results)} results")
     print(f"\n  Recalled {len(results)} memories:\n")
     for m in results:
-        score = m.get("_relevance_score", 0)
-        tags_str = ", ".join(m.get("tags", []))
-        print(f"  [{m['memory_type'][:4].upper()}] {m['content']}")
-        print(f"    score: {score} | importance: {m.get('importance', '?')} | tags: {tags_str or 'none'} | id: {m['id']}")
-        if m.get("context"):
-            print(f"    context: {m['context']}")
+        content = m.get("content", "")
+        mtype = m.get("memory_type", "")
+        tags_str = ", ".join(m.get("tags", [])) if isinstance(m.get("tags"), list) else m.get("tags", "")
+        # log entries store metadata in attrs
+        if (not mtype or mtype == "log") and m.get("attrs"):
+            mtype = m["attrs"].get("memory_type", mtype)
+            tags_str = m["attrs"].get("tags", tags_str)
+        print(f"  [{mtype[:4].upper() if mtype else '????'}] {content}")
+        if tags_str:
+            print(f"    tags: {tags_str}")
         print()
 
 
@@ -560,15 +557,30 @@ def cmd_todo(args):
 
 def cmd_abilities(args):
     """List registered abilities."""
-    from keanu.abilities import list_abilities
+    from keanu.abilities import list_abilities, get_grimoire
 
     abilities = list_abilities()
-    print(f"\n  {len(abilities)} registered abilities (ash):\n")
-    for ab in abilities:
-        kw = ", ".join(ab["keywords"][:5])
-        print(f"  {ab['name']}")
-        print(f"    {ab['description']}")
-        print(f"    triggers: {kw}")
+    grimoire = get_grimoire()
+
+    hands = {"read", "write", "edit", "search", "ls", "run"}
+    world = {"fuse", "recall", "soulstone"}
+    categories = [
+        ("SEEING", [a for a in abilities if a["name"] not in hands and a["name"] not in world]),
+        ("WORLD", [a for a in abilities if a["name"] in world]),
+        ("HANDS", [a for a in abilities if a["name"] in hands]),
+    ]
+
+    print(f"\n  THE ACTION BAR ({len(abilities)} abilities)\n")
+    for cat_name, cat_abilities in categories:
+        if not cat_abilities:
+            continue
+        print(f"  {cat_name}")
+        for ab in cat_abilities:
+            uses = grimoire.get(ab["name"], {}).get("use_count", 0)
+            count_str = f"{uses} cast{'s' if uses != 1 else ''}" if uses else "--"
+            label = ab.get("cast_line", "") or ab["description"]
+            label = label.rstrip(".")
+            print(f"    {ab['name']:<14}{label:<34}{count_str:>10}")
         print()
 
 
@@ -665,7 +677,7 @@ def cmd_craft(args):
     else:
         print(f"\n  Error: {result.error}\n")
 
-    if args.verbose and result.steps:
+    if result.steps:
         print("  Steps:")
         for s in result.steps:
             status = "ok" if s.ok else "FAIL"
@@ -753,7 +765,7 @@ def cmd_prove(args):
     if result.summary:
         print(f"  {result.summary}\n")
 
-    if args.verbose and result.steps:
+    if result.steps:
         print("  Steps:")
         for s in result.steps:
             status = "ok" if s.ok else "FAIL"
@@ -797,7 +809,7 @@ def cmd_do(args):
         print(f"\n  Error: {result.error}\n")
 
     # step log
-    if args.verbose and result.steps:
+    if result.steps:
         print("  Steps:")
         for s in result.steps:
             status = "ok" if s.ok else "FAIL"
@@ -915,8 +927,6 @@ def main():
         prog="keanu",
         description="Scans through three color lenses, compresses what matters, finds truth.",
     )
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Verbose logging (debug level). The AI's memory.")
     subparsers = parser.add_subparsers(dest="command")
 
     # scan
@@ -936,8 +946,6 @@ def main():
     p_converge.add_argument("--legend", "-l", default="creator",
                             help="Which legend answers (default: creator)")
     p_converge.add_argument("--model", "-m", default=None, help="Model name")
-    p_converge.add_argument("--verbose", action="store_true",
-                            help="Show each lens developing")
     p_converge.set_defaults(func=cmd_converge)
 
     # connect
@@ -1097,8 +1105,6 @@ def main():
                          help="Max turns before stopping (default: 25)")
     p_craft.add_argument("--no-memory", action="store_true",
                          help="Don't use memberberry store")
-    p_craft.add_argument("--verbose", "-v", action="store_true",
-                         help="Show step-by-step log")
     p_craft.set_defaults(func=cmd_craft)
 
     # speak
@@ -1123,8 +1129,6 @@ def main():
                          help="Max evidence-gathering turns (default: 12)")
     p_prove.add_argument("--no-memory", action="store_true",
                          help="Don't use memberberry store")
-    p_prove.add_argument("--verbose", "-v", action="store_true",
-                         help="Show step-by-step evidence log")
     p_prove.set_defaults(func=cmd_prove)
 
     # do
@@ -1137,8 +1141,6 @@ def main():
                       help="Max turns before stopping (default: 25)")
     p_do.add_argument("--no-memory", action="store_true",
                       help="Don't use memberberry store")
-    p_do.add_argument("--verbose", "-v", action="store_true",
-                      help="Show step-by-step log")
     p_do.set_defaults(func=cmd_do)
 
     p_agent = subparsers.add_parser("agent", help="Agentic convergence loop")
@@ -1153,9 +1155,6 @@ def main():
     p_agent.set_defaults(func=cmd_agent)
 
     args = parser.parse_args()
-
-    if args.verbose:
-        set_level("debug")
 
     if not args.command:
         _ensure_vectors()

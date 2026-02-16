@@ -34,7 +34,8 @@ src/keanu/
     alive.py               ALIVE-GREY-BLACK diagnostic. text in, state out.
     cli.py                 every keanu command starts here.
     log.py                 structured logging + COEF span export.
-    pulse.py               health check middleware.
+    pulse.py               nervous system middleware. Pulse class with
+                           history, nudges, escalation, memberberry integration.
 
     legends/               who answers when you ask.
         __init__.py        Legend dataclass + registry. load_legend(name).
@@ -47,6 +48,10 @@ src/keanu/
         breathe.py         task decomposition. breaks questions into pairs.
         loop.py            convergence loop. duality synthesis agent.
         do.py              general-purpose ReAct loop. picks abilities by name.
+        dream.py           the planner. breaks goals into phased steps.
+        speak.py           the translator. rewrites content for audiences.
+        craft.py           the coder. specialized do.py for code (hands only).
+        prove.py           the scientist. tests hypotheses with evidence.
         repl.py            interactive terminal. type a task, get it done.
         ide.py             MCP client for the VSCode extension.
 
@@ -128,6 +133,10 @@ the wellspring is the deep pool all sight draws from. one throat, one pool.
 keanu                               # launch the REPL
 keanu do "task"                     # general-purpose agent loop
 keanu agent "question"              # convergence agent (duality synthesis)
+keanu dream "build auth system"     # plan: phases + steps + dependencies
+keanu craft "add retry to oracle"   # code agent: read, edit, test loop
+keanu speak "technical content" -a friend  # translate for an audience
+keanu prove "scan covers edge cases" # test hypothesis with evidence
 keanu scan document.md              # three-primary color reading
 keanu bake                          # train lenses from examples
 keanu converge "question"           # duality synthesis
@@ -149,7 +158,9 @@ keanu todo                          # scan project gaps, generate TODO.md
 
 ## How a prompt flows
 
-There are two loops. They work differently.
+There are five hero modules. Two are loops (do.py, loop.py). Three are
+single-pass or specialized loops (dream.py, speak.py, craft.py, prove.py).
+All pass through the oracle. All get feel-checked.
 
 ### do.py (general-purpose agent)
 
@@ -240,10 +251,31 @@ text in --> wellspring.py
             detect/mood.py      color synthesis (white/black/silver/sunrise)
 ```
 
-in the world: do.py is the general tool. the oracle picks the ability, the loop
-executes it. loop.py is the philosopher. the router is the sigma axis: high
-sigma (abilities) is ash, low sigma (oracle) is fire. feel.py watches every
-response. the wellspring is the deep pool all sight draws from.
+### dream.py (planner)
+
+Single oracle call. Goal in, phased steps out. No loop, no abilities.
+
+### speak.py (translator)
+
+Single oracle call. Content + audience in, translation out. Five built-in
+audiences: friend, executive, junior-dev, 5-year-old, architect (Drew).
+
+### craft.py (code agent)
+
+Specialized do.py. Only uses hand abilities (read/write/edit/search/ls/run).
+System prompt is tuned for code: read before edit, test after write.
+
+### prove.py (hypothesis tester)
+
+Evidence-gathering loop. Uses read/search/ls/run/recall. Oracle decides what
+evidence to gather, gathers both for and against, returns verdict with
+confidence score and gaps. 3-12 turns typical.
+
+in the world: do.py is the general tool. craft.py is the specialist. dream.py
+sees the road. speak.py crosses boundaries. prove.py tests what you believe.
+loop.py is the philosopher. the router is the sigma axis: high sigma (abilities)
+is ash, low sigma (oracle) is fire. feel.py watches every response. the
+wellspring is the deep pool all sight draws from.
 
 ## Core concepts
 
@@ -322,4 +354,4 @@ the flywheel IS convergence applied to the system itself.
 - Present choices (2-4 options), not open questions.
 - When Drew loops: "Move."
 - Docstrings: lowercase start, terse, no formal capitalization. module-level: `"""name.py - what it does.` followed by a few lines of plain language, then optionally `in the world:` for the legendary voice. method-level: one line, lowercase, says what it does not what it returns. `"""fast path. append-only, no dedup, no git commit."""` not `"""Appends a log entry to the JSONL shard."""`
-- 353 tests passing. Keep them green.
+- 401 tests passing. Keep them green.

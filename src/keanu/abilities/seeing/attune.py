@@ -9,6 +9,7 @@ class ScanAbility(Ability):
     name = "attune"
     description = "Three-key attunement: red, yellow, blue"
     keywords = ["scan", "helix", "color", "mood", "three lens", "primary", "read", "attune"]
+    cast_line = "attune opens the three keys..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         p = prompt.lower()

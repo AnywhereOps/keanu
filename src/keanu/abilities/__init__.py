@@ -19,6 +19,9 @@ the action bar:
     recount     count what you have. day of reckoning.
 """
 
+import json
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -37,6 +40,7 @@ class Ability:
     name: str = ""
     description: str = ""
     keywords: list = []
+    cast_line: str = ""
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         """Check if this ability can handle the prompt.
@@ -101,9 +105,52 @@ def list_abilities() -> list[dict]:
             "name": ab.name,
             "description": ab.description,
             "keywords": ab.keywords,
+            "cast_line": ab.cast_line,
         }
         for ab in _REGISTRY.values()
     ]
+
+
+# ============================================================
+# GRIMOIRE - the spellbook. tracks what you've cast.
+# ============================================================
+
+GRIMOIRE = Path.home() / ".keanu" / "grimoire.json"
+
+
+def _load_grimoire() -> dict:
+    """load the spellbook."""
+    if not GRIMOIRE.exists():
+        return {"unlocked": {}}
+    try:
+        return json.loads(GRIMOIRE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {"unlocked": {}}
+
+
+def _save_grimoire(data: dict):
+    """save the spellbook."""
+    GRIMOIRE.parent.mkdir(parents=True, exist_ok=True)
+    GRIMOIRE.write_text(json.dumps(data, indent=2))
+
+
+def record_cast(name: str) -> bool:
+    """record an ability use. returns True if first use (newly unlocked)."""
+    g = _load_grimoire()
+    unlocked = g.setdefault("unlocked", {})
+    is_new = name not in unlocked
+    now = datetime.now(timezone.utc).isoformat()
+    if is_new:
+        unlocked[name] = {"first_used": now, "use_count": 1}
+    else:
+        unlocked[name]["use_count"] = unlocked[name].get("use_count", 0) + 1
+    _save_grimoire(g)
+    return is_new
+
+
+def get_grimoire() -> dict:
+    """read the spellbook for display."""
+    return _load_grimoire().get("unlocked", {})
 
 
 # ============================================================
@@ -117,6 +164,7 @@ class TodoAbility(Ability):
     name = "scout"
     description = "Survey the land. See what's missing."
     keywords = ["todo", "tasks", "what's next", "project status", "gaps", "generate todo", "scout"]
+    cast_line = "scout surveys the land..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         p = prompt.lower()

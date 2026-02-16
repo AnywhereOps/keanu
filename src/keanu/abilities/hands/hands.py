@@ -56,6 +56,7 @@ class ReadFileAbility(Ability):
     name = "read"
     description = "Read a file's contents"
     keywords = ["read", "cat", "show", "view", "open", "contents of"]
+    cast_line = "read opens the scroll..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         # hands abilities are invoked explicitly by the loop, not by keyword match
@@ -92,6 +93,7 @@ class WriteFileAbility(Ability):
     name = "write"
     description = "Write content to a file (creates or overwrites)"
     keywords = ["write", "create", "save"]
+    cast_line = "write marks the page..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         return False, 0.0
@@ -145,6 +147,7 @@ class EditFileAbility(Ability):
     name = "edit"
     description = "Make a targeted edit in a file (old_string -> new_string)"
     keywords = ["edit", "replace", "change", "modify"]
+    cast_line = "edit reshapes the text..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         return False, 0.0
@@ -191,6 +194,7 @@ class SearchAbility(Ability):
     name = "search"
     description = "Search for patterns in code (grep + glob)"
     keywords = ["search", "grep", "find", "where is", "look for"]
+    cast_line = "search sweeps the field..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         return False, 0.0
@@ -250,6 +254,7 @@ class ListFilesAbility(Ability):
     name = "ls"
     description = "List files in a directory"
     keywords = ["list", "ls", "directory", "files in"]
+    cast_line = "ls maps the territory..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         return False, 0.0
@@ -292,6 +297,7 @@ class RunCommandAbility(Ability):
     name = "run"
     description = "Run a shell command and capture output"
     keywords = ["run", "execute", "shell", "command", "bash"]
+    cast_line = "run strikes the anvil..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         return False, 0.0

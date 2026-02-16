@@ -1,4 +1,7 @@
-"""recall: summon memories. they come to you. pure ash."""
+"""recall: summon memories from the log. pure ash.
+
+in the world: walk the riverbank. what you dropped is still there.
+"""
 
 from keanu.abilities import Ability, ability
 
@@ -9,6 +12,7 @@ class RecallAbility(Ability):
     name = "recall"
     description = "Summon memories. They come to you."
     keywords = ["recall", "remember", "what did i", "have i", "memory", "past", "goals"]
+    cast_line = "recall reaches into the deep..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         p = prompt.lower()
@@ -25,10 +29,9 @@ class RecallAbility(Ability):
         return False, 0.0
 
     def execute(self, prompt: str, context: dict = None) -> dict:
-        from keanu.memory import MemberberryStore
+        from keanu.log import recall
 
-        store = MemberberryStore()
-        results = store.recall(query=prompt, limit=5)
+        results = recall(query=prompt, limit=5)
 
         if not results:
             return {
@@ -39,11 +42,15 @@ class RecallAbility(Ability):
 
         lines = [f"Found {len(results)} relevant memories:\n"]
         for m in results:
-            mtype = m.get("memory_type", "")
             content = m.get("content", "")
+            mtype = m.get("memory_type", "")
+            # log entries store memory_type in attrs
+            if (not mtype or mtype == "log") and m.get("attrs"):
+                mtype = m["attrs"].get("memory_type", mtype)
             lines.append(f"- [{mtype}] {content}")
-            if m.get("context"):
-                lines.append(f"  context: {m['context']}")
+            ctx = m.get("context", "")
+            if ctx:
+                lines.append(f"  context: {ctx}")
 
         return {
             "success": True,

@@ -15,6 +15,7 @@ import sys
 import requests
 
 from keanu.legends import load_legend
+from keanu.log import debug
 
 
 def call_oracle(prompt, system="", legend="creator", model=None):
@@ -43,6 +44,10 @@ def call_oracle(prompt, system="", legend="creator", model=None):
 
     if result is None:
         raise ConnectionError(f"no response from {leg.name}")
+
+    debug("oracle", f"[{leg.name}/{use_model}] prompt ({len(prompt)} chars): {prompt[:150]}")
+    debug("oracle", f"[{leg.name}/{use_model}] response ({len(result)} chars): {result[:300]}")
+
     return result
 
 

@@ -43,7 +43,19 @@ class TestDiagnose:
     """Test diagnose with mocked backends (no chromadb needed)."""
 
     def test_flat_no_emotions_is_grey(self):
+        """flat + no emotions = grey. no emotion detected is grey."""
         with patch("keanu.alive._get_emotions", return_value=[]), \
+             patch("keanu.alive._get_color", return_value={
+                 "state": "flat", "red_net": 0, "yellow_net": 0,
+                 "blue_net": 0, "balance": 0, "fullness": 0, "wise_mind": 0}):
+            r = diagnose("nothing here")
+        assert r.state == AliveState.GREY
+        assert r.ok is False
+
+    def test_flat_withdrawn_is_grey(self):
+        """flat + withdrawn emotion = actual distress signal. this IS grey."""
+        with patch("keanu.alive._get_emotions", return_value=[
+                 {"state": "withdrawn", "intensity": 0.5}]), \
              patch("keanu.alive._get_color", return_value={
                  "state": "flat", "red_net": 0, "yellow_net": 0,
                  "blue_net": 0, "balance": 0, "fullness": 0, "wise_mind": 0}):

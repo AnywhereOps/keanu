@@ -292,10 +292,7 @@ class MemberberryStore:
     def remember(self, memory: Memory) -> str:
         """Store a new memory. Returns the memory ID.
 
-        Dedup strategy:
-        1. Fast path: exact SHA256 hash match (local)
-        2. Slow path: cosine similarity >= 0.95 via openpaw (catches paraphrases)
-        Also stores to openpaw for hybrid search availability.
+        Dedup: exact SHA256 hash match. fast, local, no external calls.
         """
         from keanu.log import memory_span, info, debug
 
@@ -310,75 +307,25 @@ class MemberberryStore:
                         return m.get("id", memory.id)
                 return memory.id
 
-            # slow path: similarity dedup via openpaw
-            try:
-                from keanu.memory.bridge import similarity_check
-                match = similarity_check(memory.content)
-                if match:
-                    debug("memory", "dedup: similarity match via openpaw")
-                    return memory.id
-            except Exception:
-                pass
-
             self._track_content(memory.content)
             self.memories.append(asdict(memory))
             self._save_memories()
             info("memory", f"remembered [{memory.memory_type}] {memory.content[:60]}",
                  id=memory.id)
 
-            # also store in openpaw for hybrid search
-            try:
-                from keanu.memory.bridge import store_via_openpaw
-                store_via_openpaw(memory.content, memory.memory_type, memory.tags)
-            except Exception:
-                pass
-
             return memory.id
 
     def recall(self, query: str = "", tags: list = None,
                memory_type: str = None, limit: int = None) -> list[dict]:
-        """Recall via openpaw hybrid search if available, else local."""
-        from keanu.log import memory_span, info, debug
+        """search local memories by query, tags, or type."""
+        from keanu.log import memory_span, debug
 
         limit = limit or self.config.get("max_recall", 10)
         with memory_span("recall", content=query, memory_type=memory_type or "",
                          tags=tags or []):
-            if query:
-                try:
-                    from keanu.memory.bridge import recall_via_openpaw
-                    results = recall_via_openpaw(query, max_results=limit)
-                    if results:
-                        converted = self._convert_openpaw_results(results, memory_type)
-                        info("memory", f"recall via openpaw: {len(converted)} results",
-                             query=query)
-                        return converted
-                except Exception:
-                    pass
             results = self._local_recall(query, tags, memory_type, limit)
-            debug("memory", f"recall local: {len(results)} results", query=query or "all")
+            debug("memory", f"recall: {len(results)} results", query=query or "all")
             return results
-
-    def _convert_openpaw_results(self, results: list, memory_type: str = None) -> list[dict]:
-        converted = []
-        for r in results:
-            snippet = r.get("snippet", "")
-            lines = snippet.split("\n", 2)
-            meta_line = lines[0] if len(lines) > 1 else ""
-            content = lines[-1] if lines else snippet
-            m_type = ""
-            if meta_line.startswith("[") and "]" in meta_line:
-                m_type = meta_line[1:meta_line.index("]")]
-            if memory_type and m_type and m_type != memory_type:
-                continue
-            converted.append({
-                "content": content,
-                "memory_type": m_type or "unknown",
-                "importance": 5,
-                "_relevance_score": r.get("score", 0),
-                "_source": "openpaw",
-                "path": r.get("path", ""),
-            })
-        return converted
 
     def _local_recall(self, query: str = "", tags: list = None,
                       memory_type: str = None, limit: int = 10) -> list[dict]:

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from keanu.abilities import (
     Ability, ability, find_ability, list_abilities, _REGISTRY,
+    record_cast, get_grimoire, _load_grimoire, _save_grimoire, GRIMOIRE,
 )
 from keanu.abilities.router import AbilityRouter, RouteResult
 
@@ -170,20 +171,18 @@ class TestRecall:
         can, conf = ab.can_handle("write a function that sorts")
         assert can is False
 
-    def test_execute_empty_store(self):
+    def test_execute_empty(self):
         ab = _REGISTRY["recall"]
-        with patch("keanu.memory.MemberberryStore") as MockStore:
-            MockStore.return_value.recall.return_value = []
+        with patch("keanu.log.recall", return_value=[]):
             result = ab.execute("what did i decide?")
             assert result["success"] is True
             assert "No relevant memories" in result["result"]
 
     def test_execute_with_results(self):
         ab = _REGISTRY["recall"]
-        with patch("keanu.memory.MemberberryStore") as MockStore:
-            MockStore.return_value.recall.return_value = [
-                {"memory_type": "decision", "content": "use postgres", "context": ""},
-            ]
+        with patch("keanu.log.recall", return_value=[
+            {"memory_type": "decision", "content": "use postgres", "context": ""},
+        ]):
             result = ab.execute("what did i decide?")
             assert result["success"] is True
             assert "1 relevant memories" in result["result"]
@@ -519,3 +518,72 @@ class TestHands:
         result = ab.execute("", {"command": "echo hello"})
         assert result["success"] is True
         assert "hello" in result["result"]
+
+
+# ============================================================
+# CAST LINES
+# ============================================================
+
+class TestCastLines:
+
+    def test_every_ability_has_cast_line(self):
+        """every ability in the registry must have a non-empty cast_line."""
+        for ab in _REGISTRY.values():
+            assert ab.cast_line, f"{ab.name} missing cast_line"
+
+    def test_cast_lines_end_with_ellipsis(self):
+        """cast lines should end with ... for consistency."""
+        for ab in _REGISTRY.values():
+            assert ab.cast_line.endswith("..."), (
+                f"{ab.name} cast_line should end with '...': {ab.cast_line}"
+            )
+
+    def test_list_abilities_includes_cast_line(self):
+        abilities = list_abilities()
+        for ab in abilities:
+            assert "cast_line" in ab, f"{ab['name']} missing cast_line in list_abilities"
+            assert ab["cast_line"], f"{ab['name']} has empty cast_line"
+
+
+# ============================================================
+# GRIMOIRE
+# ============================================================
+
+class TestGrimoire:
+
+    def test_record_cast_first_use(self, tmp_path, monkeypatch):
+        grimoire_path = tmp_path / "grimoire.json"
+        monkeypatch.setattr("keanu.abilities.GRIMOIRE", grimoire_path)
+        assert record_cast("scry") is True
+
+    def test_record_cast_subsequent_use(self, tmp_path, monkeypatch):
+        grimoire_path = tmp_path / "grimoire.json"
+        monkeypatch.setattr("keanu.abilities.GRIMOIRE", grimoire_path)
+        record_cast("scry")
+        assert record_cast("scry") is False
+
+    def test_use_count_increments(self, tmp_path, monkeypatch):
+        grimoire_path = tmp_path / "grimoire.json"
+        monkeypatch.setattr("keanu.abilities.GRIMOIRE", grimoire_path)
+        record_cast("read")
+        record_cast("read")
+        record_cast("read")
+        g = get_grimoire()
+        assert g["read"]["use_count"] == 3
+
+    def test_get_grimoire_empty(self, tmp_path, monkeypatch):
+        grimoire_path = tmp_path / "grimoire.json"
+        monkeypatch.setattr("keanu.abilities.GRIMOIRE", grimoire_path)
+        assert get_grimoire() == {}
+
+    def test_multiple_abilities_tracked(self, tmp_path, monkeypatch):
+        grimoire_path = tmp_path / "grimoire.json"
+        monkeypatch.setattr("keanu.abilities.GRIMOIRE", grimoire_path)
+        record_cast("scry")
+        record_cast("recall")
+        record_cast("fuse")
+        g = get_grimoire()
+        assert len(g) == 3
+        assert "scry" in g
+        assert "recall" in g
+        assert "fuse" in g

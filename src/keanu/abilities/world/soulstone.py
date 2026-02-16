@@ -9,6 +9,7 @@ class CompressAbility(Ability):
     name = "soulstone"
     description = "Capture the essence, store it. Pure warlock."
     keywords = ["compress", "coef", "dns", "hash", "barcode", "store content", "soulstone"]
+    cast_line = "soulstone captures the essence..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         p = prompt.lower()

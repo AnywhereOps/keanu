@@ -5,7 +5,7 @@ claude is fire (low sigma, open possibility space).
 the router decides which one handles the prompt.
 """
 
-from keanu.abilities import find_ability
+from keanu.abilities import find_ability, record_cast
 from keanu.log import info, debug
 
 
@@ -45,6 +45,11 @@ class AbilityRouter:
                 result = ab.execute(prompt, context)
                 if result["success"]:
                     self.ability_hits += 1
+                    if ab.cast_line:
+                        info("cast", ab.cast_line)
+                    is_new = record_cast(ab.name)
+                    if is_new:
+                        info("cast", f"ability unlocked: {ab.name}")
                     return RouteResult(
                         source="ability",
                         response=result["result"],

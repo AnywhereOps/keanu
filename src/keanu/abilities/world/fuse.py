@@ -25,6 +25,7 @@ class FuseAbility(Ability):
         "duality", "dualities", "both sides", "fuse",
         "opposing views", "tensions", "perspectives",
     ]
+    cast_line = "fuse ignites the threshold..."
 
     def can_handle(self, prompt: str, context: dict = None) -> tuple:
         p = prompt.lower()

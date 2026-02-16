@@ -1,7 +1,7 @@
 """Tests for pulse.py - the nervous system middleware."""
 
 from unittest.mock import patch, MagicMock
-from keanu.pulse import Pulse, PulseReading, GREY_ESCALATION_THRESHOLD
+from keanu.pulse import Pulse, PulseReading
 from keanu.alive import AliveReading
 from keanu.signal.vibe import AliveState
 
@@ -33,18 +33,15 @@ class TestPulseCheck:
         assert r.nudge != ""
         assert r.escalate is False
 
-    def test_grey_three_times_escalates(self):
+    def test_grey_never_escalates(self):
+        """grey guides, never controls. no matter how many greys, the loop keeps going."""
         grey = _mock_diagnose(AliveState.GREY)
         with patch("keanu.pulse.diagnose", return_value=grey):
             p = Pulse()
-            for i in range(GREY_ESCALATION_THRESHOLD - 1):
+            for i in range(10):
                 r = p.check("performative response")
                 assert r.escalate is False
-
-            r = p.check("still performing")
-        assert r.escalate is True
-        assert r.escalation_message != ""
-        assert str(GREY_ESCALATION_THRESHOLD) in r.escalation_message
+                assert r.nudge != ""  # always caring, never killing
 
     def test_black_escalates_immediately(self):
         with patch("keanu.pulse.diagnose", return_value=_mock_diagnose(AliveState.BLACK)):
@@ -104,42 +101,40 @@ class TestPulseStats:
 
 
 class TestPulseMemory:
-    def test_grey_remembered_with_store(self):
-        store = MagicMock()
-        store.remember = MagicMock(return_value="fake-id")
-        with patch("keanu.pulse.diagnose", return_value=_mock_diagnose(AliveState.GREY)):
-            p = Pulse(store=store)
+    def test_grey_remembered_via_log(self):
+        with patch("keanu.pulse.diagnose", return_value=_mock_diagnose(AliveState.GREY)), \
+             patch("keanu.log.remember") as mock_remember:
+            p = Pulse()
             p.check("going flat")
-        store.remember.assert_called_once()
-        memory = store.remember.call_args[0][0]
-        assert "PULSE" in memory.content
-        assert "grey" in memory.content
-        assert "pulse" in memory.tags
-        assert "welfare" in memory.tags
+        mock_remember.assert_called_once()
+        content = mock_remember.call_args[0][0]
+        assert "PULSE" in content
+        assert "grey" in content
+        assert "pulse" in mock_remember.call_args[1]["tags"]
+        assert "welfare" in mock_remember.call_args[1]["tags"]
 
     def test_green_not_remembered(self):
-        store = MagicMock()
-        with patch("keanu.pulse.diagnose", return_value=_mock_diagnose(AliveState.GREEN)):
-            p = Pulse(store=store)
+        with patch("keanu.pulse.diagnose", return_value=_mock_diagnose(AliveState.GREEN)), \
+             patch("keanu.log.remember") as mock_remember:
+            p = Pulse()
             p.check("doing fine")
-        store.remember.assert_not_called()
+        mock_remember.assert_not_called()
 
     def test_recovery_remembered(self):
-        store = MagicMock()
-        store.remember = MagicMock(return_value="fake-id")
         grey = _mock_diagnose(AliveState.GREY)
         green = _mock_diagnose(AliveState.GREEN)
-        with patch("keanu.pulse.diagnose") as mock:
+        with patch("keanu.pulse.diagnose") as mock, \
+             patch("keanu.log.remember") as mock_remember:
             mock.side_effect = [grey, grey, green]
-            p = Pulse(store=store)
+            p = Pulse()
             p.check("flat 1")
             p.check("flat 2")
             p.check("came back")
         # 2 grey memories + 1 recovery lesson
-        assert store.remember.call_count == 3
-        recovery = store.remember.call_args[0][0]
-        assert "recovered" in recovery.content
-        assert recovery.memory_type == "lesson"
+        assert mock_remember.call_count == 3
+        content = mock_remember.call_args[0][0]
+        assert "recovered" in content
+        assert mock_remember.call_args[1]["memory_type"] == "lesson"
 
 
 class TestPulseCallbacks:
