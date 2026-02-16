@@ -21,6 +21,8 @@ def ensure_dir(path: Path) -> Path:
 # -- ~/.keanu/ paths --
 GRIMOIRE = keanu_home() / "grimoire.json"
 MISS_FILE = keanu_home() / "misses.jsonl"
+MISTAKES_FILE = keanu_home() / "mistakes.jsonl"
+METRICS_FILE = keanu_home() / "metrics.jsonl"
 COEF_DIR = keanu_home() / "coef"
 
 # -- ~/.memberberry/ paths --

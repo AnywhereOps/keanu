@@ -156,14 +156,27 @@ def cmd_do(args):
     _print_loop_result(result, args.max_turns)
 
 
+
 def cmd_ask(args):
     """Run the convergence loop on a question."""
     from keanu.hero.loop import run as agent_run
     from keanu.converge.graph import DualityGraph
 
+    # RAG context injection
+    rag_context = ""
+    if getattr(args, "rag", False):
+        from keanu.abilities.seeing.explore.retrieve import build_context
+        rag_context = build_context(args.question, include_web=getattr(args, "web", False))
+        if rag_context:
+            info("cli", f"RAG context: {len(rag_context)} chars")
+
+    question = args.question
+    if rag_context:
+        question = f"{rag_context}\n{args.question}"
+
     graph = DualityGraph()
     result = agent_run(
-        question=args.question,
+        question=question,
         legend=args.legend,
         model=args.model,
         graph=graph,
@@ -252,6 +265,31 @@ def cmd_scan(args):
 def cmd_bake(args):
     from keanu.scan.bake import bake
     bake(args.lenses if args.lenses else None)
+
+
+def cmd_ingest(args):
+    from keanu.abilities.seeing.explore.ingest import ingest, DEFAULT_COLLECTION
+    collection = args.collection or DEFAULT_COLLECTION
+    total_files = 0
+    total_chunks = 0
+    for path in args.paths:
+        result = ingest(path, collection=collection)
+        total_files += result["files"]
+        total_chunks += result["chunks"]
+        print(f"  {path}: {result['files']} files, {result['chunks']} chunks")
+    print(f"\n  Total: {total_files} files, {total_chunks} chunks in '{collection}'\n")
+
+
+def cmd_search(args):
+    from keanu.abilities.seeing.explore.search import web_search
+    results = web_search(args.query, n_results=args.limit)
+    if not results:
+        print("\n  No results found. Set SERPER_API_KEY for web search.\n")
+        return
+    print()
+    for r in results:
+        print(f"  [{r['title']}]({r['url']})")
+        print(f"    {r['snippet']}\n")
 
 
 def cmd_converge(args):
@@ -583,6 +621,26 @@ def _health_forge():
     print()
 
 
+def _health_convergence():
+    try:
+        from keanu.metrics import ratio
+        from keanu.mistakes import stats as mistake_stats
+        r = ratio(7)
+        ms = mistake_stats()
+        print(f"  CONVERGENCE")
+        if r["total"] > 0:
+            pct = int(r["ratio"] * 100)
+            print(f"    fire/ash:  {r['fire']}/{r['ash']} ({pct}% ash, {r['trend']})")
+        else:
+            print(f"    fire/ash:  no data yet")
+        print(f"    mistakes:  {ms['active']} active, {ms['patterns_forgeable']} forgeable")
+        print()
+    except Exception as e:
+        print(f"  CONVERGENCE")
+        print(f"    error: {e}")
+        print()
+
+
 def _health_deps():
     print(f"  EXTERNAL DEPS")
     for dep, purpose in {"chromadb": "vector storage", "requests": "LLM API"}.items():
@@ -606,6 +664,7 @@ def cmd_health(args):
     total = _health_memory(store)
     _health_disagreement(tracker, total)
     _health_forge()
+    _health_convergence()
     _health_modules()
     _health_deps()
 
@@ -632,6 +691,54 @@ def cmd_abilities(args):
             label = (ab.get("cast_line", "") or ab["description"]).rstrip(".")
             print(f"    {ab['name']:<14}{label:<34}{count_str:>10}")
         print()
+
+
+def cmd_metrics(args):
+    """Show convergence metrics dashboard."""
+    from keanu.metrics import dashboard
+    d = dashboard(days=args.days)
+    r = d["fire_ash_ratio"]
+    print(f"\n  CONVERGENCE METRICS ({d['period_days']}d)\n")
+    print(f"  {d['message']}")
+    print(f"  fire: {r['fire']}  ash: {r['ash']}  ratio: {r['ratio']}")
+    if d["by_ability"]:
+        print(f"\n  Top abilities:")
+        for a in d["by_ability"][:5]:
+            print(f"    {a['ability']:<14} {a['count']:>4}x  ({a['success_rate']:.0%} success)")
+    if d["by_legend"]:
+        print(f"\n  Fire by legend:")
+        for l in d["by_legend"]:
+            print(f"    {l['legend']:<14} {l['calls']:>4} calls  {l['total_tokens']:>6} tokens")
+    if d["forges_30d"]:
+        print(f"\n  Forged (30d): {d['forges_30d']} new abilities")
+    print()
+
+
+def cmd_mistakes(args):
+    """Show mistake patterns."""
+    from keanu.mistakes import get_patterns, stats as mistake_stats, clear_stale
+    if args.clear:
+        removed = clear_stale()
+        print(f"  Cleared {removed} stale mistakes.")
+        return
+    s = mistake_stats()
+    print(f"\n  MISTAKE MEMORY\n")
+    print(f"  total: {s['total']}  active: {s['active']}  stale: {s['stale']}")
+    if s["by_category"]:
+        print(f"\n  By category:")
+        for cat, count in s["by_category"].items():
+            print(f"    {cat:<20} {count}x")
+    patterns = get_patterns()
+    forgeable = [p for p in patterns if p["forgeable"]]
+    if forgeable:
+        print(f"\n  Forgeable patterns (3+ repeats):")
+        for p in forgeable:
+            print(f"    {p['action']}/{p['category']}: {p['count']}x  \"{p['latest_error'][:60]}\"")
+    elif patterns:
+        print(f"\n  No forgeable patterns yet (need 3+ repeats)")
+    else:
+        print(f"\n  No mistakes recorded yet. Start using craft.")
+    print()
 
 
 def cmd_forge(args):
@@ -814,6 +921,8 @@ def _build_parsers(subparsers):
     _add_legend_args(p)
     p.add_argument("--workers", "-w", type=int, default=3, help="Parallel workers")
     p.add_argument("--no-memory", action="store_true")
+    p.add_argument("--rag", action="store_true", help="Augment with RAG context from ingested docs")
+    p.add_argument("--web", action="store_true", help="Include web search results (requires --rag)")
     p.set_defaults(func=cmd_ask)
 
     # keep 'agent' as hidden alias
@@ -836,6 +945,17 @@ def _build_parsers(subparsers):
     p.add_argument("--audience", "-a", default="friend")
     _add_legend_args(p)
     p.set_defaults(func=cmd_speak)
+
+    # -- RAG --
+    p = subparsers.add_parser("ingest", help="Ingest files into RAG vector store")
+    p.add_argument("paths", nargs="+", help="Files or directories to ingest")
+    p.add_argument("--collection", "-c", default="", help="Collection name (default: keanu_rag)")
+    p.set_defaults(func=cmd_ingest)
+
+    p = subparsers.add_parser("search", help="Search the web")
+    p.add_argument("query", help="Search query")
+    p.add_argument("--limit", "-n", type=int, default=5, help="Number of results")
+    p.set_defaults(func=cmd_search)
 
     # -- analysis --
     p = subparsers.add_parser("scan", help="Three-primary reading")
@@ -954,6 +1074,14 @@ def _build_parsers(subparsers):
 
     p = subparsers.add_parser("abilities", help="List registered abilities")
     p.set_defaults(func=cmd_abilities)
+
+    p = subparsers.add_parser("metrics", help="Convergence metrics dashboard")
+    p.add_argument("--days", "-d", type=int, default=7, help="Time window in days")
+    p.set_defaults(func=cmd_metrics)
+
+    p = subparsers.add_parser("mistakes", help="Mistake patterns and stats")
+    p.add_argument("--clear", action="store_true", help="Clear stale mistakes")
+    p.set_defaults(func=cmd_mistakes)
 
     p = subparsers.add_parser("forge", help="Scaffold ability or show misses")
     p.add_argument("name", nargs="?", default="")

@@ -48,6 +48,14 @@ def call_oracle(prompt, system="", legend="creator", model=None):
     debug("oracle", f"[{leg.name}/{use_model}] prompt ({len(prompt)} chars): {prompt[:150]}")
     debug("oracle", f"[{leg.name}/{use_model}] response ({len(result)} chars): {result[:300]}")
 
+    # track fire metrics (best-effort, never block the oracle)
+    try:
+        from keanu.metrics import record_fire
+        record_fire(prompt[:100], legend=leg.name, model=use_model,
+                    tokens=len(result) // 4)  # rough estimate until real counting
+    except Exception:
+        pass
+
     return result
 
 

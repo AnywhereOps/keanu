@@ -61,6 +61,10 @@ src/keanu/
     io.py                  shared I/O helpers.
     pulse.py               nervous system middleware. Pulse class with
                            history, nudges, escalation, memberberry integration.
+    mistakes.py            mistake memory. logs agent errors with context,
+                           auto-classifies, detects patterns, flags forgeable.
+    metrics.py             convergence metrics. tracks fire (LLM) vs ash
+                           (ability) ratio over time. the thermometer.
 
     legends/               who answers when you ask.
         __init__.py        Legend dataclass + registry. load_legend(name).
@@ -190,6 +194,10 @@ keanu forge "name" --desc --keywords # scaffold a new ability
 keanu forge --misses                 # show what abilities are missing
 keanu abilities                      # list all registered abilities
 keanu healthz                        # system health dashboard
+keanu metrics                        # convergence metrics (fire/ash ratio)
+keanu metrics --days 30              # metrics over 30 days
+keanu mistakes                       # mistake patterns and forgeable signals
+keanu mistakes --clear               # clear stale mistakes
 keanu todo                           # scan project gaps, generate TODO.md
 ```
 

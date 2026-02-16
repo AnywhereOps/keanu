@@ -22,7 +22,7 @@ class TestRegistry:
         names = set(_REGISTRY.keys())
         action_bar = {
             "scout", "recall", "scry", "attune", "purge",
-            "soulstone", "inspect", "recount",
+            "soulstone", "inspect", "recount", "explore", "fuse",
         }
         hands = {"read", "write", "edit", "search", "ls", "run"}
         expected = action_bar | hands

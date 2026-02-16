@@ -13,6 +13,13 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "opentelemetry-api>=1.20.0",
     "opentelemetry-sdk>=1.20.0",
+    "haystack-ai>=2.24.0",
+    "pypdf>=4.0.0",
+    "beautifulsoup4>=4.12.0",
+    "markdown-it-py>=3.0.0",
+    "mdit_plain>=1.0.0",
+    "trafilatura>=2.0.0",
+    "nltk>=3.9.0",
 ]
 requires-python = ">=3.10,<4.0"
 classifiers = [

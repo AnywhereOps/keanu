@@ -425,12 +425,26 @@ class AgentLoop:
             except Exception as e:
                 exec_result = {"success": False, "result": str(e), "data": {}}
 
+            # track convergence metrics + mistake memory
+            try:
+                from keanu.metrics import record_ash
+                record_ash(action, success=exec_result["success"])
+            except Exception:
+                pass
+
             if exec_result["success"]:
                 if ab.cast_line:
                     info("cast", ab.cast_line)
                 is_new = record_cast(action)
                 if is_new:
                     info("cast", f"ability unlocked: {action}")
+            else:
+                try:
+                    from keanu.mistakes import log_mistake
+                    log_mistake(action, args, exec_result["result"],
+                                context=thinking)
+                except Exception:
+                    pass
 
             step = Step(
                 turn=turn, action=action,
