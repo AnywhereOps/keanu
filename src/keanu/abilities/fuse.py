@@ -1,14 +1,13 @@
 """fuse.py - convergence as an ability.
 
-takes a question. splits it across two orthogonal dualities.
-synthesizes each side through the oracle. converges the syntheses
-into something neither could reach alone.
+takes a question. reads it through six lenses (3 axes x 2 poles).
+pushes each lens to full expression. converges at the threshold.
 
-this is the first ability that uses fire. every other ability is ash,
-local and deterministic. fuse reaches through the oracle because
-convergence needs open possibility space to synthesize.
+practically: "converge these perspectives" runs the six lens pipeline and
+returns the synthesis.
 
-in the world: the fusion reactor. two opposing truths go in, one new truth comes out.
+in the world: the fusion reactor. six witnesses speak, the threshold listens,
+and says what only it can see.
 """
 
 from keanu.abilities import Ability, ability
@@ -17,7 +16,7 @@ from keanu.log import info
 
 @ability
 class FuseAbility(Ability):
-    """Convergence synthesis. The one ability that uses fire."""
+    """convergence synthesis. six lenses, full expression, then threshold."""
 
     name = "fuse"
     description = "Converge opposing perspectives into new truth."
@@ -57,42 +56,47 @@ class FuseAbility(Ability):
 
         result = run_convergence(prompt, legend=legend, model=model)
 
-        if result is None:
+        if not result.ok:
             return {
                 "success": False,
-                "result": "Could not converge. Either the graph found no dualities or the oracle couldn't be reached.",
+                "result": f"Could not converge: {result.error or 'no synthesis produced'}",
                 "data": {},
             }
 
-        final = result.get("final", {})
-        convergence = final.get("convergence", "")
-        one_line = final.get("one_line", "")
-        implications = final.get("implications", [])
-        what_changes = final.get("what_changes", "")
-
         # build readable output
         lines = []
-        if one_line:
-            lines.append(one_line)
-        if convergence and convergence != one_line:
+        if result.one_line:
+            lines.append(result.one_line)
+        if result.synthesis and result.synthesis != result.one_line:
             lines.append("")
-            lines.append(convergence)
-        if implications:
+            lines.append(result.synthesis)
+        if result.tensions:
             lines.append("")
-            for imp in implications:
-                lines.append(f"- {imp}")
-        if what_changes:
+            lines.append("Unresolved tensions:")
+            for t in result.tensions:
+                lines.append(f"  - {t}")
+        if result.what_changes:
             lines.append("")
-            lines.append(f"What changes: {what_changes}")
+            lines.append(f"What changes: {result.what_changes}")
+
+        # lens summary
+        lines.append("")
+        lines.append("Lens readings:")
+        for r in result.readings:
+            status = " [BLACK]" if r.black else ""
+            lines.append(f"  {r.name}: {r.turns} turns, {r.score:.1f}/10{status}")
 
         return {
             "success": True,
-            "result": "\n".join(lines) if lines else "Convergence complete but no synthesis text returned.",
+            "result": "\n".join(lines),
             "data": {
-                "split_source": result.get("split_source", ""),
-                "dualities": result.get("dualities", {}),
-                "convergence_1": result.get("convergence_1", {}),
-                "convergence_2": result.get("convergence_2", {}),
-                "final": final,
+                "readings": [
+                    {"lens": r.lens, "turns": r.turns, "score": r.score}
+                    for r in result.readings
+                ],
+                "synthesis": result.synthesis,
+                "one_line": result.one_line,
+                "tensions": result.tensions,
+                "graph_context": result.graph_context,
             },
         }

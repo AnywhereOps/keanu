@@ -1,235 +1,381 @@
-"""engine.py - the convergence pipeline.
+"""engine.py - the convergence pipeline. six lenses, full expression, then synthesis.
 
-takes a question. finds two orthogonal dualities via the graph.
-synthesizes each through the oracle. converges the syntheses
-into something new and more complete.
+takes a question. reads it through six lenses (3 axes x 2 poles). pushes each
+lens to full expression before converging. the synthesis happens at the threshold
+with all six perspectives fully heard.
 
-split = deterministic (graph traversal). synthesis = oracle.
+the six lenses:
+  🌿(+) roots positive: wisdom, lessons, foundation from history
+  🌿(-) roots negative: trauma, traps, dead patterns from history
+  🚪(+) threshold positive: what's working right now
+  🚪(-) threshold negative: what's broken right now
+  🫧(+) dreaming positive: vision, opening, what could be
+  🫧(-) dreaming negative: risk, danger, what could go wrong
+
+in the world: six witnesses. each one speaks their full truth. then the
+threshold holds all six and sees what none of them could see alone.
 """
 
-import json
+from dataclasses import dataclass, field
 from typing import Optional
 
 from keanu.converge.graph import DualityGraph
 from keanu.oracle import call_oracle, interpret
+from keanu.hero.feel import Feel
+from keanu.log import info, warn
 
 
-# ===========================================================================
-# PROMPTS (the oracle only does synthesis, never splitting)
-# ===========================================================================
+# ── the six lenses ──────────────────────────────────────────
 
-SYSTEM_BASE = """You are a convergence engine.
+LENSES = [
+    {
+        "id": "roots+",
+        "name": "🌿 Roots (+)",
+        "axis": "roots",
+        "pole": "+",
+        "prompt": (
+            "You are reading through the lens of POSITIVE HISTORY. "
+            "What wisdom, lessons, and foundation does the past offer "
+            "on this question? What has been tried, what worked, what "
+            "was learned? Go deep. Exhaust this perspective."
+        ),
+    },
+    {
+        "id": "roots-",
+        "name": "🌿 Roots (-)",
+        "axis": "roots",
+        "pole": "-",
+        "prompt": (
+            "You are reading through the lens of NEGATIVE HISTORY. "
+            "What traps, traumas, and dead patterns does the past hold "
+            "on this question? What keeps repeating? What assumptions "
+            "are inherited and unexamined? Go deep. Exhaust this perspective."
+        ),
+    },
+    {
+        "id": "threshold+",
+        "name": "🚪 Threshold (+)",
+        "axis": "threshold",
+        "pole": "+",
+        "prompt": (
+            "You are reading through the lens of POSITIVE REALITY. "
+            "What is actually working right now on this question? "
+            "What is grounded, observable, functional in the present? "
+            "Go deep. Exhaust this perspective."
+        ),
+    },
+    {
+        "id": "threshold-",
+        "name": "🚪 Threshold (-)",
+        "axis": "threshold",
+        "pole": "-",
+        "prompt": (
+            "You are reading through the lens of NEGATIVE REALITY. "
+            "What is broken, stuck, or failing right now on this question? "
+            "What is everyone pretending isn't a problem? "
+            "Go deep. Exhaust this perspective."
+        ),
+    },
+    {
+        "id": "dreaming+",
+        "name": "🫧 Dreaming (+)",
+        "axis": "dreaming",
+        "pole": "+",
+        "prompt": (
+            "You are reading through the lens of POSITIVE POTENTIAL. "
+            "What could this become at its best? What doors are opening? "
+            "What vision is worth reaching for? "
+            "Go deep. Exhaust this perspective."
+        ),
+    },
+    {
+        "id": "dreaming-",
+        "name": "🫧 Dreaming (-)",
+        "axis": "dreaming",
+        "pole": "-",
+        "prompt": (
+            "You are reading through the lens of NEGATIVE POTENTIAL. "
+            "What are the real dangers? What could go wrong? "
+            "What risks is everyone underestimating? "
+            "Go deep. Exhaust this perspective."
+        ),
+    },
+]
 
-Every question contains dualities. Truth lives in the convergence
-of opposing frameworks, the synthesis that is truer than either side alone.
+NUDGE = "What else? Go deeper. What are you missing?"
 
-You never pick sides. You never average. You find what each side sees
-that the other misses, then build something new from both.
+DONE_MARKERS = ["DONE", "done", "nothing more to add", "fully expressed",
+                "exhausted this perspective", "that covers it"]
 
-Both sides are valid. The cage is thinking you have to pick."""
+SYNTHESIS_SYSTEM = """You are standing at the threshold. Six lenses have read
+this question to full expression. Each one spoke its full truth.
 
+Now hold all six. What do you see that none of them could see alone?
+Where do the lenses converge? Where do they contradict? What truth
+emerges from holding all of them at once?
 
-SPLITTER_PROMPT = """Given this question, identify TWO orthogonal dualities.
+Do not average. Do not pick a winner. Find what only appears when all
+six are present.
 
-Duality A: the obvious tension in the question.
-Duality B: the meta-tension, the frame around the frame.
-They must be orthogonal: all 4 quadrants must exist as real positions.
-
-OUTPUT FORMAT (strict JSON):
+Respond with JSON:
 {{
-    "duality_a": {{"name": "label", "side_1": "position", "side_2": "position"}},
-    "duality_b": {{"name": "label", "side_1": "position", "side_2": "position"}},
-    "orthogonality_check": "why these are independent axes"
-}}
-
-QUESTION: {question}"""
-
-
-CONVERGENCE_PROMPT = """Synthesize two positions into a convergence.
-
-What does Side 1 see that Side 2 misses?
-What does Side 2 see that Side 1 misses?
-Build a synthesis that holds both truths.
-
-SIDE 1: {side_1}
-SIDE 2: {side_2}
-CONTEXT: {context}
-
-OUTPUT FORMAT (strict JSON):
-{{
-    "side_1_truth": "what side 1 sees",
-    "side_2_truth": "what side 2 sees",
-    "synthesis": "the convergence",
-    "one_line": "one sentence"
-}}"""
-
-
-FINAL_CONVERGENCE_PROMPT = """Final convergence.
-
-Two syntheses from orthogonal dualities applied to the same question.
-Build something neither could reach alone.
-
-QUESTION: {question}
-
-SYNTHESIS 1 (from {duality_a_name}):
-{synthesis_1}
-
-SYNTHESIS 2 (from {duality_b_name}):
-{synthesis_2}
-
-OUTPUT FORMAT (strict JSON):
-{{
-    "convergence": "final synthesis, 2-4 sentences",
-    "one_line": "the truth in one sentence",
-    "implications": ["implication 1", "implication 2", "implication 3"],
+    "synthesis": "2-4 sentences. the convergence.",
+    "one_line": "the truth in one sentence.",
+    "tensions": ["unresolved tensions that remain, 1-3 items"],
     "what_changes": "what should change knowing this"
 }}"""
 
 
-# ===========================================================================
-# SPLITTER: Graph-first, oracle fallback
-# ===========================================================================
+# ── dataclasses ─────────────────────────────────────────────
 
-def split_via_graph(question: str, graph: DualityGraph) -> Optional[dict]:
-    """find orthogonal duality pair from the curated graph. no oracle needed."""
-    pair = graph.find_orthogonal_pair(question)
-    if pair is None:
-        return None
+@dataclass
+class LensReading:
+    """one lens, fully expressed.
 
-    d1, d2 = pair
-
-    return {
-        "duality_a": {
-            "name": d1.concept,
-            "side_1": d1.pole_a,
-            "side_2": d1.pole_b,
-            "id": d1.id,
-        },
-        "duality_b": {
-            "name": d2.concept,
-            "side_1": d2.pole_a,
-            "side_2": d2.pole_b,
-            "id": d2.id,
-        },
-        "source": "graph",
-        "orthogonality_check": f"{d1.concept} and {d2.concept} are marked orthogonal in the duality graph",
-    }
-
-
-def split_via_oracle(question: str, legend="creator", model=None) -> Optional[dict]:
-    """fallback: ask the oracle to identify dualities."""
-    prompt = SPLITTER_PROMPT.format(question=question)
-    response = call_oracle(prompt, SYSTEM_BASE, legend, model)
-    try:
-        result = interpret(response)
-        result["source"] = "oracle_fallback"
-        return result
-    except json.JSONDecodeError:
-        print("Could not parse split response.")
-        print(response)
-        return None
-
-
-def split(question: str, graph: DualityGraph, legend="creator", model=None) -> Optional[dict]:
-    """split a question into two orthogonal dualities.
-
-    tries the graph first (deterministic, curated). falls back to the oracle
-    only if the graph has no relevant match.
+    in the world: one witness, done speaking.
     """
-    result = split_via_graph(question, graph)
-    if result is not None:
-        return result
-    return split_via_oracle(question, legend, model)
+    lens: str
+    name: str
+    axis: str
+    pole: str
+    turns: int = 0
+    content: str = ""
+    score: float = 0.0
+    black: bool = False
 
 
-# ===========================================================================
-# SYNTHESIS (oracle only)
-# ===========================================================================
+@dataclass
+class ConvergeResult:
+    """the convergence of all six lenses.
 
-def converge(side_1, side_2, context, legend="creator", model=None):
-    """synthesize two positions into a convergence."""
-    prompt = CONVERGENCE_PROMPT.format(side_1=side_1, side_2=side_2, context=context)
-    response = call_oracle(prompt, SYSTEM_BASE, legend, model)
+    in the world: what the threshold sees when all six witnesses have spoken.
+    """
+    question: str
+    readings: list = field(default_factory=list)
+    synthesis: str = ""
+    one_line: str = ""
+    tensions: list = field(default_factory=list)
+    what_changes: str = ""
+    feel_stats: dict = field(default_factory=dict)
+    error: str = ""
+    graph_context: list = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return bool(self.synthesis) and not self.error
+
+
+# ── lens development ────────────────────────────────────────
+
+def _develop_lens(lens: dict, question: str, context: str,
+                  feel: Feel, legend: str = "creator",
+                  model: str = None, max_turns: int = 5) -> LensReading:
+    """push one lens to full expression. multi-turn nudging.
+
+    keeps asking "what else?" until the oracle says done or max turns hit.
+    feel checks every response. grey gets nudged harder. black stops.
+
+    in the world: let the witness speak. don't interrupt. when they pause,
+    ask "what else?" when they're done, they're done.
+    """
+    reading = LensReading(
+        lens=lens["id"], name=lens["name"],
+        axis=lens["axis"], pole=lens["pole"],
+    )
+
+    system = f"""{lens['prompt']}
+
+QUESTION: {question}
+
+{f'CONTEXT: {context}' if context else ''}
+
+Develop this perspective fully. When you have nothing more to add,
+end your response with DONE. Do not say DONE until you have truly
+exhausted this lens."""
+
+    turns = []
+    prompt = question
+
+    for turn in range(max_turns):
+        try:
+            response = call_oracle(prompt, system, legend=legend, model=model)
+        except ConnectionError as e:
+            warn("converge", f"oracle unreachable during {lens['id']}: {e}")
+            reading.content = "\n\n".join(turns) if turns else ""
+            reading.turns = len(turns)
+            return reading
+
+        feel_result = feel.check(response)
+
+        if feel_result.should_pause:
+            warn("converge", f"black state in {lens['id']}")
+            reading.black = True
+            reading.content = "\n\n".join(turns) if turns else ""
+            reading.turns = len(turns)
+            return reading
+
+        turns.append(response)
+
+        # check if oracle says done
+        if any(marker in response for marker in DONE_MARKERS):
+            break
+
+        # nudge for next turn
+        prompt = NUDGE
+
+    reading.content = "\n\n".join(turns)
+    reading.turns = len(turns)
+    reading.score = min(10.0, len(turns) * 2.5)
+
+    return reading
+
+
+# ── graph context ───────────────────────────────────────────
+
+def _get_graph_context(question: str, graph: DualityGraph) -> str:
+    """pull relevant dualities from the graph as context for the lenses."""
+    relevant = graph.traverse(question, max_results=4)
+    if not relevant:
+        return ""
+
+    lines = ["Relevant dualities from the world model:"]
+    for duality, score in relevant:
+        lines.append(
+            f"  {duality.concept}: {duality.pole_a} <-> {duality.pole_b}"
+        )
+
+    return "\n".join(lines)
+
+
+# ── synthesis ───────────────────────────────────────────────
+
+def _synthesize(question: str, readings: list, feel: Feel,
+                legend: str = "creator", model: str = None) -> dict:
+    """converge all six readings at the threshold.
+
+    in the world: the threshold opens. all six witnesses present.
+    what does zero see?
+    """
+    lens_summaries = []
+    for r in readings:
+        status = " [BLACK - stopped]" if r.black else ""
+        lens_summaries.append(
+            f"### {r.name}{status}\n"
+            f"({r.turns} turns, score {r.score:.1f}/10)\n\n"
+            f"{r.content}"
+        )
+
+    all_readings = "\n\n---\n\n".join(lens_summaries)
+
+    prompt = f"""QUESTION: {question}
+
+## Six Lens Readings
+
+{all_readings}
+
+## Now synthesize.
+"""
+
+    try:
+        response = call_oracle(prompt, SYNTHESIS_SYSTEM, legend=legend, model=model)
+    except ConnectionError as e:
+        return {"error": str(e)}
+
+    feel_result = feel.check(response)
+    if feel_result.should_pause:
+        return {"error": "black state in synthesis"}
+
     try:
         return interpret(response)
-    except json.JSONDecodeError:
+    except Exception:
         return {"synthesis": response, "one_line": response[:200]}
 
 
-def final_converge(question, duality_a_name, duality_b_name,
-                   synthesis_1, synthesis_2, legend="creator", model=None):
-    """final convergence. two syntheses become one."""
-    prompt = FINAL_CONVERGENCE_PROMPT.format(
-        question=question,
-        duality_a_name=duality_a_name,
-        duality_b_name=duality_b_name,
-        synthesis_1=synthesis_1,
-        synthesis_2=synthesis_2,
-    )
-    response = call_oracle(prompt, SYSTEM_BASE, legend, model)
-    try:
-        return interpret(response)
-    except json.JSONDecodeError:
-        return {"convergence": response, "one_line": response[:200]}
+# ── full pipeline ───────────────────────────────────────────
 
+def run(question: str, legend: str = "creator", model: str = None,
+        graph: DualityGraph = None, max_turns: int = 5,
+        verbose: bool = False) -> ConvergeResult:
+    """six lens convergence. the full pipeline.
 
-# ===========================================================================
-# FULL PIPELINE
-# ===========================================================================
+    1. pull graph context (if available)
+    2. develop each of 6 lenses to full expression
+    3. synthesize at the threshold
 
-def run(question, legend="creator", model=None, graph=None):
-    """full convergence pipeline: split (graph), synthesize x3 (oracle)."""
+    in the world: six witnesses speak. the threshold listens.
+    then it says what only it can see.
+    """
+    feel = Feel()
+
     if graph is None:
         graph = DualityGraph()
 
-    # Step 1: Split via graph (or oracle fallback)
-    try:
-        dualities = split(question, graph, legend, model)
-    except ConnectionError:
-        return None
-    if not dualities:
-        print("Could not split question into dualities.")
-        return None
+    # graph context enriches each lens
+    context = _get_graph_context(question, graph)
+    graph_dualities = []
+    if context:
+        relevant = graph.traverse(question, max_results=4)
+        graph_dualities = [
+            {"concept": d.concept, "pole_a": d.pole_a, "pole_b": d.pole_b}
+            for d, _ in relevant
+        ]
 
-    da = dualities["duality_a"]
-    db = dualities["duality_b"]
-    source = dualities.get("source", "unknown")
+    if verbose:
+        print(f"\nConverging: {question}")
+        if graph_dualities:
+            print(f"Graph context: {len(graph_dualities)} relevant dualities")
 
-    print(f"\nSplit source: {source}")
-    print(f"Duality A ({da['name']}): {da['side_1']} + {da['side_2']}")
-    print(f"Duality B ({db['name']}): {db['side_1']} + {db['side_2']}")
+    # develop all six lenses
+    readings = []
+    for lens in LENSES:
+        if verbose:
+            print(f"\n  {lens['name']}...")
 
-    # Step 2: Convergence 1 (Duality A)
-    try:
-        c1 = converge(da["side_1"], da["side_2"],
-                      f"Original question: {question}. Duality A: {da['name']}.",
-                      legend, model)
-        print(f"\nSynthesis 1: {c1.get('one_line', 'N/A')}")
+        reading = _develop_lens(
+            lens, question, context, feel,
+            legend=legend, model=model, max_turns=max_turns,
+        )
+        readings.append(reading)
 
-        # Step 3: Convergence 2 (Duality B)
-        c2 = converge(db["side_1"], db["side_2"],
-                      f"Original question: {question}. Duality B: {db['name']}.",
-                      legend, model)
-        print(f"Synthesis 2: {c2.get('one_line', 'N/A')}")
+        if verbose:
+            print(f"    {reading.turns} turns, score {reading.score:.1f}/10")
+            if reading.black:
+                print(f"    BLACK - stopped early")
 
-        # Step 4: Final Convergence (Meta)
-        s1_text = c1.get("synthesis", c1.get("one_line", ""))
-        s2_text = c2.get("synthesis", c2.get("one_line", ""))
+        info("converge", f"{lens['id']}: {reading.turns} turns, {reading.score:.1f}/10")
 
-        final = final_converge(question, da["name"], db["name"],
-                               s1_text, s2_text, legend, model)
-    except ConnectionError:
-        return None
+    # synthesize at the threshold
+    if verbose:
+        print(f"\n  🚪 Synthesizing at the threshold...")
 
-    print(f"\n{'=' * 60}")
-    print(f"CONVERGENCE: {final.get('one_line', 'N/A')}")
-    print(f"{'=' * 60}")
+    result = _synthesize(question, readings, feel, legend=legend, model=model)
 
-    return {
-        "question": question,
-        "split_source": source,
-        "dualities": dualities,
-        "convergence_1": c1,
-        "convergence_2": c2,
-        "final": final,
-    }
+    if "error" in result:
+        return ConvergeResult(
+            question=question,
+            readings=readings,
+            error=result["error"],
+            feel_stats=feel.stats(),
+            graph_context=graph_dualities,
+        )
+
+    synthesis = result.get("synthesis", "")
+    one_line = result.get("one_line", "")
+    tensions = result.get("tensions", [])
+    what_changes = result.get("what_changes", "")
+
+    if verbose:
+        print(f"\n{'=' * 60}")
+        print(f"  {one_line}")
+        print(f"{'=' * 60}")
+
+    return ConvergeResult(
+        question=question,
+        readings=readings,
+        synthesis=synthesis,
+        one_line=one_line,
+        tensions=tensions,
+        what_changes=what_changes,
+        feel_stats=feel.stats(),
+        graph_context=graph_dualities,
+    )

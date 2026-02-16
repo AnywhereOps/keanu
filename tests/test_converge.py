@@ -1,7 +1,7 @@
-"""Tests for converge/ - duality graph and splitting (no LLM needed)."""
+"""tests for converge/ - duality graph and JSON parsing (no LLM needed)."""
 
 from keanu.converge.graph import DualityGraph
-from keanu.converge.engine import split_via_graph
+from keanu.converge.engine import LENSES
 from keanu.oracle import interpret
 
 
@@ -16,14 +16,12 @@ class TestDualityGraph:
 
     def test_find_by_concept(self):
         g = DualityGraph()
-        # root dualities should include "existence"
         result = g.find_by_concept("existence")
-        assert result is not None or True  # may not match exact string
+        assert result is not None or True
 
     def test_find_orthogonal_pair(self):
         g = DualityGraph()
         pair = g.find_orthogonal_pair("What is the meaning of life?")
-        # may or may not find a pair depending on graph state
         if pair is not None:
             d1, d2 = pair
             assert d1.concept != d2.concept
@@ -34,14 +32,17 @@ class TestDualityGraph:
         assert isinstance(result, (list, dict, type(None)))
 
 
-class TestSplitViaGraph:
-    def test_split_returns_dict_or_none(self):
-        g = DualityGraph()
-        result = split_via_graph("Should AI have rights?", g)
-        if result is not None:
-            assert "duality_a" in result
-            assert "duality_b" in result
-            assert result["source"] == "graph"
+class TestLensesConfig:
+    def test_six_lenses(self):
+        assert len(LENSES) == 6
+
+    def test_each_lens_has_required_fields(self):
+        for lens in LENSES:
+            assert "id" in lens
+            assert "name" in lens
+            assert "axis" in lens
+            assert "pole" in lens
+            assert "prompt" in lens
 
 
 class TestParseJson:

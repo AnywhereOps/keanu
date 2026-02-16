@@ -28,7 +28,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 
-from keanu.log import info, warn
+from keanu.log import info, warn, set_level
 
 
 def cmd_scan(args):
@@ -46,9 +46,31 @@ def cmd_bake(args):
 
 
 def cmd_converge(args):
-    """Run duality convergence on a question."""
+    """Run six lens convergence on a question."""
     from keanu.converge.engine import run
-    run(args.question, legend=args.legend, model=args.model)
+    verbose = getattr(args, "verbose", False)
+    result = run(args.question, legend=args.legend, model=args.model,
+                 verbose=verbose)
+
+    if not result.ok:
+        print(f"Could not converge: {result.error or 'no synthesis'}")
+        return
+
+    print(f"\n{'=' * 60}")
+    print(f"  CONVERGENCE: {result.one_line}")
+    print(f"{'=' * 60}")
+    if result.synthesis and result.synthesis != result.one_line:
+        print(f"\n{result.synthesis}")
+    if result.tensions:
+        print(f"\nUnresolved tensions:")
+        for t in result.tensions:
+            print(f"  - {t}")
+    if result.what_changes:
+        print(f"\nWhat changes: {result.what_changes}")
+    print(f"\nLens readings:")
+    for r in result.readings:
+        status = " [BLACK]" if r.black else ""
+        print(f"  {r.name}: {r.turns} turns, {r.score:.1f}/10{status}")
 
 
 def cmd_connect(args):
@@ -863,11 +885,38 @@ def cmd_agent(args):
     print()
 
 
+def _ensure_vectors():
+    """auto-bake chromadb vectors if missing. the nervous system needs them."""
+    try:
+        from keanu.wellspring import depths
+        chroma_dir = depths()
+        need_bake = False
+        if not Path(chroma_dir).exists():
+            need_bake = True
+        else:
+            try:
+                import chromadb
+                client = chromadb.PersistentClient(path=chroma_dir)
+                client.get_collection("silverado")
+                client.get_collection("silverado_rgb")
+            except Exception:
+                need_bake = True
+        if need_bake:
+            info("cli", "vectors missing. baking...")
+            from keanu.scan.bake import bake
+            bake()
+            info("cli", "vectors baked.")
+    except Exception as e:
+        warn("cli", f"auto-bake failed: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="keanu",
         description="Scans through three color lenses, compresses what matters, finds truth.",
     )
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Verbose logging (debug level). The AI's memory.")
     subparsers = parser.add_subparsers(dest="command")
 
     # scan
@@ -882,11 +931,13 @@ def main():
     p_bake.set_defaults(func=cmd_bake)
 
     # converge
-    p_converge = subparsers.add_parser("converge", help="Duality convergence on a question")
+    p_converge = subparsers.add_parser("converge", help="Six lens convergence on a question")
     p_converge.add_argument("question", help="Question to converge on")
     p_converge.add_argument("--legend", "-l", default="creator",
                             help="Which legend answers (default: creator)")
     p_converge.add_argument("--model", "-m", default=None, help="Model name")
+    p_converge.add_argument("--verbose", action="store_true",
+                            help="Show each lens developing")
     p_converge.set_defaults(func=cmd_converge)
 
     # connect
@@ -1102,10 +1153,17 @@ def main():
     p_agent.set_defaults(func=cmd_agent)
 
     args = parser.parse_args()
+
+    if args.verbose:
+        set_level("debug")
+
     if not args.command:
+        _ensure_vectors()
         from keanu.hero.repl import run_repl
         run_repl()
         return
+
+    _ensure_vectors()
 
     # bootstrap COEF tracing for commands that benefit from it
     try:
