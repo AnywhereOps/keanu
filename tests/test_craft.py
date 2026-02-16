@@ -112,4 +112,4 @@ class TestCraft:
         assert "offline" in result.error
 
     def test_hands_set(self):
-        assert HANDS == {"read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format"}
+        assert HANDS == {"read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format", "patch"}

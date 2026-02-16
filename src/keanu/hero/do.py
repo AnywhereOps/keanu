@@ -46,7 +46,7 @@ class LoopConfig:
 
 def _build_system(abilities: list[dict], ide_context: str = "") -> str:
     """build the system prompt for the general-purpose loop."""
-    hands = ["read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format"]
+    hands = ["read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format", "patch"]
     seeing = []
 
     for ab in abilities:
@@ -65,6 +65,7 @@ def _build_system(abilities: list[dict], ide_context: str = "") -> str:
         "  test: run tests. args: {op: run|discover|targeted|coverage, target?, files?}",
         "  lint: run project linter. args: {path?, command?, fix?}",
         "  format: run project formatter. args: {path?, command?, check?}",
+        "  patch: multi-file atomic edit. args: {edits: [{file_path, old_string, new_string}], preview?}",
     ]
 
     base = f"""You are keanu. You solve tasks by using abilities.
@@ -138,6 +139,7 @@ Your tools:
     ops: run {target?}, discover {target?}, targeted {files: [...]}, coverage {target?}
   lint: run project linter. args: {path?, command?, fix?}
   format: run project formatter. args: {path?, command?, check?}
+  patch: multi-file atomic edit. args: {edits: [{file_path, old_string, new_string}], preview?}
 
 On each turn, respond with JSON:
 {
@@ -250,7 +252,7 @@ You're just looking around. If nothing interests you, that's fine to say.
 If something surprises you, follow it. If you want to breathe, breathe."""
 
 
-HANDS = {"read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format"}
+HANDS = {"read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format", "patch"}
 EVIDENCE_TOOLS = {"read", "search", "ls", "run", "recall"}
 EXPLORE_TOOLS = {"read", "search", "ls", "run", "recall"}
 

@@ -12,3 +12,4 @@ from keanu.abilities.hands.hands import (  # noqa: F401
 from keanu.abilities.hands.git import GitAbility  # noqa: F401
 from keanu.abilities.hands.test import TestAbility  # noqa: F401
 from keanu.abilities.hands.lint import LintAbility, FormatAbility  # noqa: F401
+from keanu.abilities.hands.patch import PatchAbility  # noqa: F401

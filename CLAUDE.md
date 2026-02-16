@@ -125,6 +125,7 @@ src/keanu/
         hands/             action abilities (read + write).
             hands.py       read, write, edit, search, ls, run.
             lint.py        lint and format abilities. auto-detect from project model.
+            patch.py       multi-file atomic edits. rollback on failure.
 
         world/             external-reaching abilities.
             fuse.py        convergence as an ability.

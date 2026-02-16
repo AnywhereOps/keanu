@@ -426,4 +426,5 @@
 - [x] Phase 4: Code review (review.py) - security/perf/logic/style pattern checking
 - [x] Phase 3: Session caching (cache.py) - FileCache, ASTCache, SymbolCache
 - [x] Phase 5: Task decomposition (decompose.py) - heuristic + dream-powered
-- [x] 780 tests passing
+- [x] Phase 1: Multi-file atomic patch ability (patch.py) with rollback
+- [x] 795 tests passing
