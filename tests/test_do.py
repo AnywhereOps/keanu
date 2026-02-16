@@ -1,10 +1,10 @@
-"""Tests for hero/do.py - the general-purpose agentic loop."""
+"""Tests for hero/do.py - the unified agent loop."""
 
 import json
 import pytest
 from unittest.mock import patch, MagicMock
 
-from keanu.hero.do import AgentLoop, LoopResult, Step, _build_system, run
+from keanu.hero.do import AgentLoop, LoopResult, Step, _build_system, run, DO_CONFIG
 from keanu.oracle import try_interpret
 
 

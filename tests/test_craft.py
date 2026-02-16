@@ -1,4 +1,4 @@
-"""tests for craft.py - the coder."""
+"""tests for craft - the coder (unified loop with CRAFT_CONFIG)."""
 
 import json
 from unittest.mock import patch, MagicMock
@@ -61,13 +61,13 @@ class TestCraft:
             "data": {},
         }
 
-        with patch("keanu.hero.craft.call_oracle", side_effect=self._mock_oracle_sequence(responses)):
-            with patch("keanu.hero.craft.Feel") as mock_feel_cls:
+        with patch("keanu.hero.do.call_oracle", side_effect=self._mock_oracle_sequence(responses)):
+            with patch("keanu.hero.do.Feel") as mock_feel_cls:
                 mock_feel = MagicMock()
                 mock_feel.check.return_value = MagicMock(should_pause=False)
                 mock_feel.stats.return_value = {}
                 mock_feel_cls.return_value = mock_feel
-                with patch("keanu.hero.craft._REGISTRY", {"read": mock_ability}):
+                with patch("keanu.hero.do._REGISTRY", {"read": mock_ability}):
                     result = craft("check test.py")
 
         assert result.ok
@@ -88,8 +88,8 @@ class TestCraft:
             "answer": "done",
         })
 
-        with patch("keanu.hero.craft.call_oracle", side_effect=self._mock_oracle_sequence([response, done_response])):
-            with patch("keanu.hero.craft.Feel") as mock_feel_cls:
+        with patch("keanu.hero.do.call_oracle", side_effect=self._mock_oracle_sequence([response, done_response])):
+            with patch("keanu.hero.do.Feel") as mock_feel_cls:
                 mock_feel = MagicMock()
                 mock_feel.check.return_value = MagicMock(should_pause=False)
                 mock_feel.stats.return_value = {}
@@ -100,8 +100,8 @@ class TestCraft:
         assert any(not s.ok for s in result.steps)
 
     def test_craft_handles_connection_error(self):
-        with patch("keanu.hero.craft.call_oracle", side_effect=ConnectionError("offline")):
-            with patch("keanu.hero.craft.Feel") as mock_feel_cls:
+        with patch("keanu.hero.do.call_oracle", side_effect=ConnectionError("offline")):
+            with patch("keanu.hero.do.Feel") as mock_feel_cls:
                 mock_feel = MagicMock()
                 mock_feel.stats.return_value = {}
                 mock_feel_cls.return_value = mock_feel

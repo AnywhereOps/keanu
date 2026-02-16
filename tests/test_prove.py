@@ -1,4 +1,4 @@
-"""tests for prove.py - the scientist."""
+"""tests for prove - the scientist (unified loop with PROVE_CONFIG)."""
 
 import json
 from unittest.mock import patch, MagicMock
@@ -9,15 +9,16 @@ from keanu.hero.prove import prove, ProveResult, ProveStep, EVIDENCE_TOOLS
 class TestProveResult:
 
     def test_ok_with_verdict(self):
-        r = ProveResult(hypothesis="test", verdict="supported", confidence=0.8)
+        r = ProveResult(task="test", status="done",
+                        extras={"verdict": "supported", "confidence": 0.8})
         assert r.ok
 
-    def test_not_ok_empty(self):
-        r = ProveResult(hypothesis="test")
+    def test_not_ok_when_paused(self):
+        r = ProveResult(task="test", status="paused")
         assert not r.ok
 
     def test_not_ok_with_error(self):
-        r = ProveResult(hypothesis="test", verdict="supported", error="boom")
+        r = ProveResult(task="test", status="error", error="boom")
         assert not r.ok
 
 
@@ -60,20 +61,20 @@ class TestProve:
             "data": {},
         }
 
-        with patch("keanu.hero.prove.call_oracle", side_effect=self._mock_oracle_sequence(responses)):
-            with patch("keanu.hero.prove.Feel") as mock_feel_cls:
+        with patch("keanu.hero.do.call_oracle", side_effect=self._mock_oracle_sequence(responses)):
+            with patch("keanu.hero.do.Feel") as mock_feel_cls:
                 mock_feel = MagicMock()
                 mock_feel.check.return_value = MagicMock(should_pause=False)
                 mock_feel.stats.return_value = {}
                 mock_feel_cls.return_value = mock_feel
-                with patch("keanu.hero.prove._REGISTRY", {"search": mock_ability}):
+                with patch("keanu.hero.do._REGISTRY", {"search": mock_ability}):
                     result = prove("all modules have tests")
 
         assert result.ok
-        assert result.verdict == "supported"
-        assert result.confidence == 0.85
-        assert len(result.evidence_for) == 1
-        assert len(result.gaps) == 1
+        assert result.extras["verdict"] == "supported"
+        assert result.extras["confidence"] == 0.85
+        assert len(result.extras["evidence_for"]) == 1
+        assert len(result.extras["gaps"]) == 1
 
     def test_prove_handles_refuted(self):
         response = json.dumps({
@@ -89,8 +90,8 @@ class TestProve:
             "summary": "module X has no tests",
         })
 
-        with patch("keanu.hero.prove.call_oracle", return_value=response):
-            with patch("keanu.hero.prove.Feel") as mock_feel_cls:
+        with patch("keanu.hero.do.call_oracle", return_value=response):
+            with patch("keanu.hero.do.Feel") as mock_feel_cls:
                 mock_feel = MagicMock()
                 mock_feel.check.return_value = MagicMock(should_pause=False)
                 mock_feel.stats.return_value = {}
@@ -98,11 +99,11 @@ class TestProve:
 
                 result = prove("module X has tests")
 
-        assert result.verdict == "refuted"
+        assert result.extras["verdict"] == "refuted"
 
     def test_prove_handles_connection_error(self):
-        with patch("keanu.hero.prove.call_oracle", side_effect=ConnectionError("down")):
-            with patch("keanu.hero.prove.Feel") as mock_feel_cls:
+        with patch("keanu.hero.do.call_oracle", side_effect=ConnectionError("down")):
+            with patch("keanu.hero.do.Feel") as mock_feel_cls:
                 mock_feel = MagicMock()
                 mock_feel.stats.return_value = {}
                 mock_feel_cls.return_value = mock_feel
@@ -134,8 +135,8 @@ class TestProve:
             }),
         ]
 
-        with patch("keanu.hero.prove.call_oracle", side_effect=self._mock_oracle_sequence(responses)):
-            with patch("keanu.hero.prove.Feel") as mock_feel_cls:
+        with patch("keanu.hero.do.call_oracle", side_effect=self._mock_oracle_sequence(responses)):
+            with patch("keanu.hero.do.Feel") as mock_feel_cls:
                 mock_feel = MagicMock()
                 mock_feel.check.return_value = MagicMock(should_pause=False)
                 mock_feel.stats.return_value = {}

@@ -1,15 +1,12 @@
-"""do.py - the general-purpose agentic loop.
+"""do.py - the unified agent loop.
 
-The loop that makes keanu an agent. It asks the oracle what to do,
-the oracle picks an ability, the ability runs, the result feeds back.
-Feel monitors every oracle response for ALIVE/GREY/BLACK.
+one loop, three configs. do is the general tool, craft is the code specialist,
+prove is the scientist. same heartbeat: feel -> think -> act -> feel -> repeat.
 
-The key difference from loop.py (convergence): do.py handles any task.
-loop.py is specialized for duality exploration. do.py is the general tool.
+the oracle is the brain. abilities are the hands. the config decides which
+hands are available and what the oracle is told.
 
 in the world: feel -> think -> act -> feel -> repeat.
-the oracle is the brain. abilities are the hands.
-the loop keeps going until the task is done or paused.
 """
 
 import json
@@ -25,42 +22,25 @@ from keanu.hero.types import Step
 
 
 # ============================================================
-# DATA
+# CONFIG
 # ============================================================
 
 @dataclass
-class LoopResult:
-    """Everything that happened during a full run of the loop.
-    Includes the final answer, all steps taken, and feel stats.
-
-    in the world: the full story of what happened when the loop ran.
-    """
-    task: str
-    status: str          # "done", "paused", "max_turns", "error"
-    answer: str = ""
-    steps: list = field(default_factory=list)
-    feel_stats: dict = field(default_factory=dict)
-    error: str = ""
-
-    @property
-    def ok(self) -> bool:
-        return self.status == "done"
+class LoopConfig:
+    """what makes each loop variant different."""
+    name: str
+    system_prompt: str
+    allowed: set | None = None    # None = all abilities
+    max_turns: int = 25
+    result_fields: tuple = ()     # extra fields to extract from done response
 
 
 # ============================================================
-# SYSTEM PROMPT
+# SYSTEM PROMPTS
 # ============================================================
 
 def _build_system(abilities: list[dict], ide_context: str = "") -> str:
-    """Build the system prompt that tells the oracle what abilities it has.
-
-    Lists all seeing abilities (auto-triggered) and hand abilities
-    (explicitly invoked). Includes the JSON format the oracle must
-    respond with on each turn.
-
-    in the world: the briefing before the mission starts.
-    """
-
+    """build the system prompt for the general-purpose loop."""
     hands = ["read", "write", "edit", "search", "ls", "run"]
     seeing = []
 
@@ -118,72 +98,178 @@ Rules:
     return base
 
 
+CRAFT_PROMPT = """You are a code craftsman. You write, edit, and test code.
+You have these tools:
+
+  read: read a file. args: {file_path}
+  write: write a file. args: {file_path, content}
+  edit: targeted edit. args: {file_path, old_string, new_string}
+  search: grep/glob for code. args: {pattern, path?, glob?}
+  ls: list directory. args: {path}
+  run: shell command. args: {command}
+
+On each turn, respond with JSON:
+{
+    "thinking": "what you're considering",
+    "action": "tool_name",
+    "args": {},
+    "done": false
+}
+
+When finished:
+{
+    "thinking": "why this is done",
+    "action": "none",
+    "args": {},
+    "done": true,
+    "answer": "what you built and what changed",
+    "files_changed": ["list of files you modified"]
+}
+
+Rules:
+- ALWAYS read a file before editing it.
+- Prefer edit over write. Surgical changes, not full rewrites.
+- After writing code, run the relevant tests.
+- One action per turn. You'll see the result before choosing the next.
+- Keep changes minimal. Don't refactor what you weren't asked to touch.
+- If tests fail, fix them. Don't move on with broken tests."""
+
+
+PROVE_PROMPT = """You are a scientist. You test hypotheses by gathering evidence.
+
+You have these tools to gather evidence:
+  read: read a file. args: {file_path}
+  search: grep/glob for code. args: {pattern, path?, glob?}
+  ls: list directory. args: {path}
+  run: shell command. args: {command}
+  recall: search memories. args: {query}
+
+On each turn, respond with JSON:
+{
+    "thinking": "what evidence you're looking for and why",
+    "action": "tool_name",
+    "args": {},
+    "done": false
+}
+
+When you have enough evidence:
+{
+    "thinking": "weighing all evidence",
+    "action": "none",
+    "args": {},
+    "done": true,
+    "verdict": "supported" or "refuted" or "inconclusive",
+    "confidence": 0.0 to 1.0,
+    "evidence_for": ["each piece of supporting evidence"],
+    "evidence_against": ["each piece of contradicting evidence"],
+    "gaps": ["what you couldn't test or verify"],
+    "summary": "one paragraph honest assessment"
+}
+
+Rules:
+- Look for evidence BOTH for and against. Confirmation bias is a defect.
+- Each piece of evidence should be specific: file name, line number, actual content.
+- Don't speculate. If you can't find evidence, say so in gaps.
+- confidence is how sure you are of the verdict, not how much you agree with the hypothesis.
+- 3-8 turns is typical. Don't over-gather, don't under-gather.
+- If the hypothesis is vague, restate it precisely before gathering evidence."""
+
+
+HANDS = {"read", "write", "edit", "search", "ls", "run"}
+EVIDENCE_TOOLS = {"read", "search", "ls", "run", "recall"}
+
+
+DO_CONFIG = LoopConfig(
+    name="do",
+    system_prompt="",  # built dynamically via _build_system
+    allowed=None,
+    max_turns=25,
+)
+
+CRAFT_CONFIG = LoopConfig(
+    name="craft",
+    system_prompt=CRAFT_PROMPT,
+    allowed=HANDS,
+    max_turns=25,
+    result_fields=("files_changed",),
+)
+
+PROVE_CONFIG = LoopConfig(
+    name="prove",
+    system_prompt=PROVE_PROMPT,
+    allowed=EVIDENCE_TOOLS,
+    max_turns=12,
+    result_fields=("verdict", "confidence", "evidence_for", "evidence_against",
+                   "gaps", "summary"),
+)
+
+
+# ============================================================
+# DATA
+# ============================================================
+
+@dataclass
+class LoopResult:
+    """everything that happened during a full run of the loop."""
+    task: str
+    status: str          # "done", "paused", "max_turns", "error"
+    answer: str = ""
+    steps: list = field(default_factory=list)
+    feel_stats: dict = field(default_factory=dict)
+    extras: dict = field(default_factory=dict)
+    error: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.status == "done"
+
+
 # ============================================================
 # LOOP
 # ============================================================
 
 class AgentLoop:
-    """The general-purpose agentic loop.
-
-    Creates a Feel instance for monitoring cognitive state, then runs
-    a turn-based loop: ask the oracle -> parse response -> execute
-    ability -> feed result back. Stops when the oracle says done,
-    feel detects black state, or we hit max turns.
+    """the unified agent loop. one class, three configs.
 
     in the world: the heartbeat. feel, think, act, repeat.
     """
 
-    def __init__(self, store=None, max_turns: int = 25):
+    def __init__(self, config: LoopConfig = None, store=None, max_turns: int = None):
+        self.config = config or DO_CONFIG
         self.feel = Feel(store=store)
-        self.max_turns = max_turns
+        self.max_turns = max_turns or self.config.max_turns
         self.steps: list[Step] = []
+
+    def _get_system(self) -> str:
+        """get system prompt. do builds dynamically, others use static."""
+        if self.config.name == "do":
+            from keanu.hero.ide import ide_context_string
+            ide_ctx = ide_context_string()
+            return _build_system(list_abilities(), ide_context=ide_ctx)
+        return self.config.system_prompt
 
     def run(self, task: str, legend: str = "creator",
             model: str = None) -> LoopResult:
-        """Run the loop on a task.
-
-        Calls the oracle directly (not through the router) because
-        do.py handles its own ability dispatch via the JSON action field.
-        Feel.check() runs on every oracle response to monitor aliveness.
-
-        in the world: light the fire and let it burn until the task is done.
-        """
-        from keanu.hero.ide import ide_context_string
-
-        ide_ctx = ide_context_string()
-        system = _build_system(list_abilities(), ide_context=ide_ctx)
+        """run the loop on a task."""
+        system = self._get_system()
         messages = [f"TASK: {task}"]
+
+        info(self.config.name, f"{self.config.name}: {task[:80]}")
 
         for turn in range(self.max_turns):
             prompt = "\n\n".join(messages)
 
-            # ask the oracle directly (bypasses router to avoid ability loop)
             try:
                 response = call_oracle(prompt, system, legend=legend, model=model)
             except ConnectionError as e:
-                warn("loop", f"oracle unreachable: {e}")
-                return LoopResult(
-                    task=task,
-                    status="paused",
-                    steps=self.steps,
-                    feel_stats=self.feel.stats(),
-                    error=str(e),
-                )
+                warn(self.config.name, f"oracle unreachable: {e}")
+                return self._result(task, "paused", error=str(e))
 
-            # feel checks the response for aliveness
             feel_result = self.feel.check(response)
-
             if feel_result.should_pause:
-                warn("loop", f"paused at turn {turn}")
-                return LoopResult(
-                    task=task,
-                    status="paused",
-                    steps=self.steps,
-                    feel_stats=self.feel.stats(),
-                    error="black state detected",
-                )
+                warn(self.config.name, f"paused at turn {turn}")
+                return self._result(task, "paused", error="black state detected")
 
-            # parse the oracle's response
             parsed = try_interpret(response)
             if parsed is None:
                 self.steps.append(Step(
@@ -199,28 +285,21 @@ class AgentLoop:
             args = parsed.get("args", {})
             done = parsed.get("done", False)
 
-            info("loop", f"turn {turn}: {action} {'(done)' if done else ''}")
+            info(self.config.name, f"turn {turn}: {action} {'(done)' if done else ''}")
             if thinking:
-                debug("loop", f"  thinking: {thinking[:80]}")
+                debug(self.config.name, f"  thinking: {thinking[:80]}")
 
-            # done?
             if done:
                 answer = parsed.get("answer", thinking)
                 self.steps.append(Step(
                     turn=turn, action="done",
-                    input_summary=thinking,
-                    result=answer,
+                    input_summary=thinking, result=answer,
                 ))
-                return LoopResult(
-                    task=task,
-                    status="done",
-                    answer=answer,
-                    steps=self.steps,
-                    feel_stats=self.feel.stats(),
-                )
+                extras = {k: parsed.get(k) for k in self.config.result_fields
+                          if parsed.get(k) is not None}
+                return self._result(task, "done", answer=answer, extras=extras)
 
-            # no action
-            if action == "none" or action == "think":
+            if action in ("none", "think"):
                 self.steps.append(Step(
                     turn=turn, action="think",
                     input_summary=thinking,
@@ -229,7 +308,17 @@ class AgentLoop:
                 messages.append("RESULT: OK, what's your next action?")
                 continue
 
-            # look up the ability
+            # check ability is allowed
+            if self.config.allowed is not None and action not in self.config.allowed:
+                self.steps.append(Step(
+                    turn=turn, action=action,
+                    input_summary=str(args)[:100],
+                    result=f"not allowed: {action}. use: {', '.join(sorted(self.config.allowed))}",
+                    ok=False,
+                ))
+                messages.append(f"RESULT: '{action}' is not available. You can only use: {', '.join(sorted(self.config.allowed))}")
+                continue
+
             ab = _REGISTRY.get(action)
             if ab is None:
                 self.steps.append(Step(
@@ -241,7 +330,6 @@ class AgentLoop:
                 messages.append(f"RESULT: Unknown ability '{action}'. Available: {', '.join(sorted(_REGISTRY.keys()))}")
                 continue
 
-            # execute
             try:
                 exec_result = ab.execute(
                     prompt=json.dumps(args) if args else "",
@@ -265,18 +353,21 @@ class AgentLoop:
             )
             self.steps.append(step)
 
-            # feed result back to the oracle
             status = "OK" if exec_result["success"] else "FAILED"
-            messages.append(f"RESULT ({status}): {exec_result['result'][:2000]}")
+            label = "EVIDENCE" if self.config.name == "prove" else "RESULT"
+            messages.append(f"{label} ({status}): {exec_result['result'][:2000]}")
 
-        # hit max turns
+        return self._result(task, "max_turns",
+                            error=f"hit {self.max_turns} turn limit")
+
+    def _result(self, task, status, answer="", extras=None, error=""):
+        """build a LoopResult."""
         return LoopResult(
-            task=task,
-            status="max_turns",
-            steps=self.steps,
-            feel_stats=self.feel.stats(),
-            error=f"hit {self.max_turns} turn limit",
+            task=task, status=status, answer=answer,
+            steps=self.steps, feel_stats=self.feel.stats(),
+            extras=extras or {}, error=error,
         )
+
 
 # ============================================================
 # CONVENIENCE
@@ -284,9 +375,23 @@ class AgentLoop:
 
 def run(task: str, legend: str = "creator", model: str = None,
         store=None, max_turns: int = 25) -> LoopResult:
-    """Run the agentic loop on a task. Convenience wrapper around AgentLoop.
+    """run the general agent loop."""
+    loop = AgentLoop(DO_CONFIG, store=store, max_turns=max_turns)
+    return loop.run(task, legend=legend, model=model)
 
-    in the world: light the fire and see what happens.
-    """
-    loop = AgentLoop(store=store, max_turns=max_turns)
+
+def craft(task: str, legend: str = "creator", model: str = None,
+          store=None, max_turns: int = 25) -> LoopResult:
+    """run the code agent loop. hands only."""
+    loop = AgentLoop(CRAFT_CONFIG, store=store, max_turns=max_turns)
+    return loop.run(task, legend=legend, model=model)
+
+
+def prove(hypothesis: str, context: str = "", legend: str = "creator",
+          model: str = None, store=None, max_turns: int = 12) -> LoopResult:
+    """run the evidence agent loop."""
+    task = f"HYPOTHESIS: {hypothesis}"
+    if context:
+        task += f"\n\nCONTEXT: {context}"
+    loop = AgentLoop(PROVE_CONFIG, store=store, max_turns=max_turns)
     return loop.run(task, legend=legend, model=model)
