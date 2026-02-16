@@ -14,6 +14,11 @@ def sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def short_hash(text: str, length: int = 12) -> str:
+    """truncated sha256. used for IDs and dedup keys."""
+    return sha256(text)[:length]
+
+
 class ContentDNS:
     def __init__(self, storage_dir: str | None = None):
         self._by_hash: dict[str, str] = {}

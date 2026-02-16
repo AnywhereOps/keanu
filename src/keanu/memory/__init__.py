@@ -11,12 +11,6 @@ from .memberberry import (
 )
 from .gitstore import GitStore
 from .disagreement import Disagreement, DisagreementTracker
-from .bridge import (
-    capture_from_conversation,
-    should_capture,
-    detect_category,
-)
-
 __all__ = [
     "Memory",
     "MemoryType",
@@ -28,7 +22,4 @@ __all__ = [
     "GitStore",
     "Disagreement",
     "DisagreementTracker",
-    "capture_from_conversation",
-    "should_capture",
-    "detect_category",
 ]

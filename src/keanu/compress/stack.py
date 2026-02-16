@@ -9,9 +9,9 @@ One object. Five methods. Every layer is reversible. Every transition verified.
     VECTORS                        (agent layer)
 """
 
-import hashlib
-
 import numpy as np
+
+from keanu.compress.dns import sha256
 
 from .codec import COEFEncoder, COEFDecoder, PatternRegistry, Seed
 from .dns import ContentDNS
@@ -116,8 +116,8 @@ class COEFStack:
         })
 
         # VERIFY
-        final_hash = hashlib.sha256(decoded["content"].encode()).hexdigest()
-        original_hash = hashlib.sha256(content.encode()).hexdigest()
+        final_hash = sha256(decoded["content"])
+        original_hash = sha256(content)
         results["final_lossless"] = final_hash == original_hash
         results["original"] = content
         results["recovered"] = decoded["content"]

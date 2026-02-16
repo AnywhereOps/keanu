@@ -13,13 +13,13 @@ Purpose: Live your best life by never forgetting what matters.
 import json
 import os
 import re
-import hashlib
 from datetime import datetime, timedelta
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 from enum import Enum
 
+from keanu.compress.dns import short_hash
 from keanu.io import append_jsonl
 
 
@@ -79,8 +79,7 @@ class Memory:
         if not self.created_at:
             self.created_at = datetime.now().isoformat()
         if not self.id:
-            raw = f"{self.content}{self.created_at}"
-            self.id = hashlib.sha256(raw.encode()).hexdigest()[:12]
+            self.id = short_hash(f"{self.content}{self.created_at}", 12)
 
     # scoring weights
     TAG_OVERLAP_WEIGHT = 0.3
@@ -146,8 +145,7 @@ class Action:
 
     def __post_init__(self):
         if not self.id:
-            raw = f"{self.description}{datetime.now().isoformat()}"
-            self.id = hashlib.sha256(raw.encode()).hexdigest()[:8]
+            self.id = short_hash(f"{self.description}{datetime.now().isoformat()}", 8)
 
 
 @dataclass
@@ -166,8 +164,7 @@ class Plan:
         if not self.created_at:
             self.created_at = datetime.now().isoformat()
         if not self.id:
-            raw = f"{self.title}{self.created_at}"
-            self.id = hashlib.sha256(raw.encode()).hexdigest()[:12]
+            self.id = short_hash(f"{self.title}{self.created_at}", 12)
 
 
 # ============================================================
@@ -184,7 +181,7 @@ class MemberberryStore:
         self.plans: list[dict] = self._load(PLANS_FILE)
         self.config: dict = self._load_config()
         self._content_hashes: set[str] = {
-            hashlib.sha256(m.get("content", "").encode()).hexdigest()[:16]
+            short_hash(m.get("content", ""), 16)
             for m in self.memories
         }
 
@@ -282,12 +279,10 @@ class MemberberryStore:
             json.dump(self.plans, f, indent=2)
 
     def _is_duplicate(self, content: str) -> bool:
-        content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
-        return content_hash in self._content_hashes
+        return short_hash(content, 16) in self._content_hashes
 
     def _track_content(self, content: str):
-        content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
-        self._content_hashes.add(content_hash)
+        self._content_hashes.add(short_hash(content, 16))
 
     # -- Memory operations --
 
@@ -302,9 +297,9 @@ class MemberberryStore:
                          memory_type=memory.memory_type, tags=memory.tags):
             # fast path: exact hash dedup
             if self._is_duplicate(memory.content):
+                mem_hash = short_hash(memory.content, 16)
                 for m in self.memories:
-                    if hashlib.sha256(m.get("content", "").encode()).hexdigest()[:16] == \
-                       hashlib.sha256(memory.content.encode()).hexdigest()[:16]:
+                    if short_hash(m.get("content", ""), 16) == mem_hash:
                         debug("memory", "dedup: exact hash match", id=m.get("id", ""))
                         return m.get("id", memory.id)
                 return memory.id

@@ -9,9 +9,10 @@ stored in memberberry as type 'decision' with tag 'disagreement'.
 nothing is deleted. everything is a lesson.
 """
 
-import hashlib
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
+
+from keanu.compress.dns import short_hash
 
 
 @dataclass
@@ -31,8 +32,7 @@ class Disagreement:
         if not self.timestamp:
             self.timestamp = datetime.now().isoformat()
         if not self.id:
-            raw = f"{self.topic}{self.timestamp}"
-            self.id = hashlib.sha256(raw.encode()).hexdigest()[:12]
+            self.id = short_hash(f"{self.topic}{self.timestamp}", 12)
 
 
 class DisagreementTracker:

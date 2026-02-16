@@ -16,8 +16,6 @@ from keanu.memory.memberberry import (
 )
 from keanu.memory.gitstore import GitStore, LOG_IMPORTANCE, DEFAULT_HERO
 from keanu.memory.disagreement import Disagreement, DisagreementTracker
-from keanu.memory.bridge import should_capture, detect_category, capture_from_conversation
-
 
 def _tmp_store():
     """Create a store in a temp directory."""
@@ -268,44 +266,6 @@ class TestDisagreement:
         assert s["total"] == 0
         assert s["alerts"] == []
 
-
-class TestBridgeCapture:
-    def test_should_capture_triggers(self):
-        from keanu.memory.bridge import should_capture
-        assert should_capture("remember this for later")
-        assert should_capture("Important: deploy by friday")
-        assert should_capture("I always want tests")
-        assert not should_capture("just a normal message")
-
-    def test_detect_category(self):
-        from keanu.memory.bridge import detect_category
-        assert detect_category("I prefer dark mode") == "preference"
-        assert detect_category("decided to use postgres") == "decision"
-        assert detect_category("my goal is to ship") == "goal"
-        assert detect_category("lesson learned the hard way") == "lesson"
-        assert detect_category("commit by friday deadline") == "commitment"
-        assert detect_category("the sky is blue") == "fact"
-
-    def test_capture_from_conversation(self):
-        from keanu.memory.bridge import capture_from_conversation
-        messages = [
-            "hello there",
-            "remember to always run tests",
-            "I prefer using python",
-            "just chatting",
-            "important: never skip code review",
-        ]
-        captures = capture_from_conversation(messages)
-        assert len(captures) == 3
-        assert captures[0]["memory_type"] == "fact"
-        assert captures[1]["memory_type"] == "preference"
-        assert captures[1]["content"] == "I prefer using python"
-
-    def test_capture_max_five(self):
-        from keanu.memory.bridge import capture_from_conversation
-        messages = [f"remember item {i}" for i in range(10)]
-        captures = capture_from_conversation(messages)
-        assert len(captures) <= 5
 
 
 class TestConfigAudit:
