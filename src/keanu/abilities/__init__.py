@@ -81,11 +81,53 @@ def ability(cls):
 
 def find_ability(prompt: str, context: dict = None,
                  threshold: float = 0.6) -> tuple:
-    """Find the best matching ability for a prompt.
+    """find the best matching ability for a prompt.
 
-    Returns:
-        (ability, confidence) or (None, 0.0) if no match above threshold.
+    tries vector similarity first (chromadb embeddings). falls back to
+    keyword matching if vectors aren't baked. cosine distance threshold
+    of 0.4 maps to ~0.6 similarity.
+
+    returns (ability, confidence) or (None, 0.0) if no match.
     """
+    # try vector routing first
+    vec_result = _find_by_vectors(prompt, threshold)
+    if vec_result[0] is not None:
+        return vec_result
+
+    # fall back to keyword matching
+    return _find_by_keywords(prompt, context, threshold)
+
+
+def _find_by_vectors(prompt: str, threshold: float = 0.6) -> tuple:
+    """vector-based ability lookup via chromadb embeddings."""
+    try:
+        from keanu.abilities.bake_abilities import query_abilities, has_baked_abilities
+        if not has_baked_abilities():
+            return None, 0.0
+
+        matches = query_abilities(prompt, n_results=3)
+        if not matches:
+            return None, 0.0
+
+        best_name, best_dist = matches[0]
+        # cosine distance -> confidence: 1.0 - distance
+        confidence = 1.0 - best_dist
+
+        if confidence < threshold:
+            return None, 0.0
+
+        ab = _REGISTRY.get(best_name)
+        if ab is None:
+            return None, 0.0
+
+        return ab, confidence
+    except Exception:
+        return None, 0.0
+
+
+def _find_by_keywords(prompt: str, context: dict = None,
+                      threshold: float = 0.6) -> tuple:
+    """keyword-based ability lookup. the original fallback."""
     best = None
     best_conf = 0.0
 

@@ -357,6 +357,11 @@ def bake(examples_path=None, lenses_path=None, detectors_only=False,
             bake_detectors(examples_path)
         if not detectors_only:
             bake_helix(lenses_path)
+
+        # always bake abilities into chromadb
+        from keanu.abilities.bake_abilities import bake_abilities
+        bake_abilities()
+
         print(f"\n  done. chromadb vectors in {CHROMA_DIR}")
 
     if backend in ("behavioral", "both"):
