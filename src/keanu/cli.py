@@ -816,7 +816,42 @@ def cmd_mistakes(args):
     print()
 
 
-def cmd_deps(args):
+def cmd_review(args):
+    """Review code for issues."""
+    from keanu.review import review_diff, review_file
+    import subprocess
+
+    if args.file:
+        result = review_file(args.file)
+    else:
+        # review staged changes by default
+        diff = subprocess.run(
+            ["git", "diff", "--staged"] if args.staged else ["git", "diff"],
+            capture_output=True, text=True,
+        ).stdout
+        if not diff:
+            diff = subprocess.run(
+                ["git", "diff", "HEAD~1"] if not args.staged else ["git", "diff", "--staged"],
+                capture_output=True, text=True,
+            ).stdout
+        if not diff:
+            print("\n  No changes to review.\n")
+            return
+        result = review_diff(diff)
+
+    if result.issues:
+        print(f"\n  REVIEW: {result.summary}\n")
+        for issue in result.issues[:30]:
+            icon = {"critical": "!!", "warning": " !", "info": "  ", "style": "  "}
+            prefix = icon.get(issue.severity, "  ")
+            print(f"  {prefix} {issue.file}:{issue.line} [{issue.category}] {issue.message}")
+            if issue.suggestion:
+                print(f"      -> {issue.suggestion}")
+    else:
+        print(f"\n  {result.summary}\n")
+    print()
+
+
 def cmd_symbols(args):
     """Find symbol definitions or references."""
     from keanu.symbols import find_definition, find_references, find_callers, list_symbols
@@ -1269,6 +1304,11 @@ def _build_parsers(subparsers):
     p.add_argument("--path", default="", help="Path to format (default: cwd)")
     p.add_argument("--check", action="store_true", help="Check only, don't modify")
     p.set_defaults(func=cmd_format)
+
+    p = subparsers.add_parser("review", help="Review code for issues")
+    p.add_argument("--file", default="", help="Review a specific file")
+    p.add_argument("--staged", action="store_true", help="Review staged changes")
+    p.set_defaults(func=cmd_review)
 
     p = subparsers.add_parser("symbols", aliases=["sym"], help="Find symbol definitions/references")
     p.add_argument("name", nargs="?", default="", help="Symbol name to find")

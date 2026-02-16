@@ -79,6 +79,8 @@ src/keanu/
                            find_references, find_callers, list_symbols.
     router.py              smart model routing. picks haiku/sonnet/opus
                            based on task complexity, turn count, keywords.
+    review.py              code review. reads diffs, flags security/perf/logic/
+                           style issues. OWASP patterns, Python anti-patterns.
 
     legends/               who answers when you ask.
         __init__.py        Legend dataclass + registry. load_legend(name).
@@ -219,6 +221,9 @@ keanu symbols call_oracle            # find where call_oracle is defined
 keanu symbols call_oracle --refs     # find all references
 keanu symbols call_oracle --callers  # find all callers
 keanu symbols --list src/keanu/oracle.py  # list all symbols in a file
+keanu review                         # review unstaged changes
+keanu review --staged                # review staged changes
+keanu review --file src/keanu/foo.py # review a specific file
 keanu healthz                        # system health dashboard
 keanu metrics                        # convergence metrics (fire/ash ratio)
 keanu metrics --days 30              # metrics over 30 days
