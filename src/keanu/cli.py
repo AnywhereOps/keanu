@@ -127,11 +127,11 @@ def _add_legend_args(p):
     p.add_argument("--model", "-m", default=None, help="Model name")
 
 
-def _add_agent_args(p, max_turns=25):
+def _add_agent_args(p, max_turns=0):
     """add --legend, --model, --max-turns, --no-memory to a parser."""
     _add_legend_args(p)
     p.add_argument("--max-turns", type=int, default=max_turns,
-                   help=f"Max turns (default: {max_turns})")
+                   help=f"Max turns, 0=unlimited (default: {max_turns})")
     p.add_argument("--no-memory", action="store_true",
                    help="Don't use memberberry store")
 
@@ -698,8 +698,8 @@ def _health_forge():
 
 def _health_convergence():
     try:
-        from keanu.infra.metrics import ratio
-        from keanu.infra.mistakes import stats as mistake_stats
+        from keanu.abilities.world.metrics import ratio
+        from keanu.abilities.world.mistakes import stats as mistake_stats
         r = ratio(7)
         ms = mistake_stats()
         print(f"  CONVERGENCE")
@@ -770,7 +770,7 @@ def cmd_abilities(args):
 
 def cmd_metrics(args):
     """Show convergence metrics dashboard."""
-    from keanu.infra.metrics import dashboard
+    from keanu.abilities.world.metrics import dashboard
     d = dashboard(days=args.days)
     r = d["fire_ash_ratio"]
     print(f"\n  CONVERGENCE METRICS ({d['period_days']}d)\n")
@@ -791,7 +791,7 @@ def cmd_metrics(args):
 
 def cmd_mistakes(args):
     """Show mistake patterns."""
-    from keanu.infra.mistakes import get_patterns, stats as mistake_stats, clear_stale
+    from keanu.abilities.world.mistakes import get_patterns, stats as mistake_stats, clear_stale
     if args.clear:
         removed = clear_stale()
         print(f"  Cleared {removed} stale mistakes.")
@@ -1012,7 +1012,7 @@ def cmd_codegen(args):
 
 def cmd_mcp(args):
     """Run keanu as an MCP server over stdio."""
-    from keanu.infra.mcp_server import MCPServer
+    from keanu.abilities.world.mcp_server import MCPServer
     server = MCPServer()
     server.run_stdio()
 
@@ -1233,7 +1233,7 @@ def cmd_ci(args):
 
 def cmd_security(args):
     """Security scanning: secrets, dependencies, audit."""
-    from keanu.infra.security import (
+    from keanu.abilities.world.security import (
         scan_secrets, check_secrets_in_staged,
         check_gitignore_coverage, scan_dependencies,
         get_audit_log,
@@ -1286,7 +1286,7 @@ def cmd_security(args):
 
 def cmd_profile(args):
     """Profile code or benchmark functions."""
-    from keanu.infra.profile import profile_script, find_slow_functions
+    from keanu.abilities.world.profile import profile_script, find_slow_functions
 
     if args.file:
         result = profile_script(args.file)
@@ -1313,7 +1313,7 @@ def cmd_profile(args):
 
 def cmd_corrections(args):
     """Show learned correction patterns and style preferences."""
-    from keanu.infra.corrections import load_corrections, correction_patterns, load_style_prefs
+    from keanu.abilities.world.corrections import load_corrections, correction_patterns, load_style_prefs
 
     if args.prefs:
         prefs = load_style_prefs()
@@ -1336,7 +1336,7 @@ def cmd_corrections(args):
 
 
 def cmd_setup(args):
-    from keanu.infra.firstrun import check_setup, format_status, get_quickstart
+    from keanu.abilities.world.firstrun import check_setup, format_status, get_quickstart
     if args.quickstart:
         print(f"\n{get_quickstart()}\n")
         return
@@ -1345,7 +1345,7 @@ def cmd_setup(args):
 
 
 def cmd_ops(args):
-    from keanu.infra.ops import scan as ops_scan, get_ops_history
+    from keanu.abilities.world.ops import scan as ops_scan, get_ops_history
     if args.history:
         history = get_ops_history(limit=20)
         if not history:
@@ -1584,7 +1584,7 @@ def _build_parsers(subparsers):
     p.add_argument("task", help="Task to accomplish")
     p.add_argument("--craft", action="store_true", help="Code agent (hands only)")
     p.add_argument("--prove", action="store_true", help="Evidence agent")
-    _add_agent_args(p, max_turns=25)
+    _add_agent_args(p, max_turns=0)
     p.set_defaults(func=cmd_do)
 
     p = subparsers.add_parser("ask", help="Convergence loop (duality synthesis)")

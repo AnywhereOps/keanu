@@ -3,7 +3,7 @@
 import json
 from unittest.mock import patch, MagicMock
 
-from keanu.infra.mcp_server import (
+from keanu.abilities.world.mcp_server import (
     list_tools, call_tool, list_resources, read_resource,
     MCPServer, _mcp_type,
 )
@@ -41,7 +41,7 @@ class TestCallTool:
 
     def test_call_strips_prefix(self):
         # "read" should work with or without keanu_ prefix
-        with patch("keanu.infra.mcp_server._REGISTRY") as mock_reg:
+        with patch("keanu.abilities.world.mcp_server._REGISTRY") as mock_reg:
             mock_ab = MagicMock()
             mock_ab.execute.return_value = {"success": True, "result": "ok"}
             mock_reg.get.return_value = mock_ab
@@ -51,7 +51,7 @@ class TestCallTool:
         mock_reg.get.assert_called_with("read")
 
     def test_call_returns_content(self):
-        with patch("keanu.infra.mcp_server._REGISTRY") as mock_reg:
+        with patch("keanu.abilities.world.mcp_server._REGISTRY") as mock_reg:
             mock_ab = MagicMock()
             mock_ab.execute.return_value = {"success": True, "result": "file contents here"}
             mock_reg.get.return_value = mock_ab
@@ -62,7 +62,7 @@ class TestCallTool:
         assert "file contents here" in result["content"][0]["text"]
 
     def test_call_handles_exception(self):
-        with patch("keanu.infra.mcp_server._REGISTRY") as mock_reg:
+        with patch("keanu.abilities.world.mcp_server._REGISTRY") as mock_reg:
             mock_ab = MagicMock()
             mock_ab.execute.side_effect = RuntimeError("boom")
             mock_reg.get.return_value = mock_ab

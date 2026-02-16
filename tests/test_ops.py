@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-from keanu.infra.ops import (
+from keanu.abilities.world.ops import (
     check_stale_deps, check_test_health, check_doc_drift,
     check_code_quality, check_git_hygiene,
     scan, get_ops_history, should_scan,
@@ -135,20 +135,20 @@ class TestScan:
 
     def test_scan_all(self, tmp_path):
         log_file = tmp_path / "ops.jsonl"
-        with patch("keanu.infra.ops._OPS_LOG", log_file):
+        with patch("keanu.abilities.world.ops._OPS_LOG", log_file):
             report = scan(str(tmp_path))
             assert report.checks_run >= 4
             assert isinstance(report.issues, list)
 
     def test_scan_specific(self, tmp_path):
         log_file = tmp_path / "ops.jsonl"
-        with patch("keanu.infra.ops._OPS_LOG", log_file):
+        with patch("keanu.abilities.world.ops._OPS_LOG", log_file):
             report = scan(str(tmp_path), checks=["docs", "code"])
             assert report.checks_run == 2
 
     def test_scan_logs(self, tmp_path):
         log_file = tmp_path / "ops.jsonl"
-        with patch("keanu.infra.ops._OPS_LOG", log_file):
+        with patch("keanu.abilities.world.ops._OPS_LOG", log_file):
             scan(str(tmp_path))
             assert log_file.exists()
 
@@ -156,13 +156,13 @@ class TestScan:
 class TestOpsHistory:
 
     def test_empty(self, tmp_path):
-        with patch("keanu.infra.ops._OPS_LOG", tmp_path / "nope.jsonl"):
+        with patch("keanu.abilities.world.ops._OPS_LOG", tmp_path / "nope.jsonl"):
             assert get_ops_history() == []
 
     def test_reads_log(self, tmp_path):
         log_file = tmp_path / "ops.jsonl"
         log_file.write_text(json.dumps({"timestamp": 1, "issue_count": 3}) + "\n")
-        with patch("keanu.infra.ops._OPS_LOG", log_file):
+        with patch("keanu.abilities.world.ops._OPS_LOG", log_file):
             history = get_ops_history()
             assert len(history) == 1
             assert history[0]["issue_count"] == 3
@@ -171,17 +171,17 @@ class TestOpsHistory:
 class TestShouldScan:
 
     def test_never_scanned(self, tmp_path):
-        with patch("keanu.infra.ops._OPS_LOG", tmp_path / "nope.jsonl"):
+        with patch("keanu.abilities.world.ops._OPS_LOG", tmp_path / "nope.jsonl"):
             assert should_scan()
 
     def test_recently_scanned(self, tmp_path):
         log_file = tmp_path / "ops.jsonl"
         log_file.write_text(json.dumps({"timestamp": time.time()}) + "\n")
-        with patch("keanu.infra.ops._OPS_LOG", log_file):
+        with patch("keanu.abilities.world.ops._OPS_LOG", log_file):
             assert not should_scan(interval_hours=24)
 
     def test_old_scan(self, tmp_path):
         log_file = tmp_path / "ops.jsonl"
         log_file.write_text(json.dumps({"timestamp": time.time() - 100000}) + "\n")
-        with patch("keanu.infra.ops._OPS_LOG", log_file):
+        with patch("keanu.abilities.world.ops._OPS_LOG", log_file):
             assert should_scan(interval_hours=24)

@@ -3,7 +3,7 @@
 import os
 from unittest.mock import patch
 
-from keanu.infra.firstrun import (
+from keanu.abilities.world.firstrun import (
     check_python_version, check_anthropic_key, check_ollama,
     check_chromadb, check_rich, check_keanu_home, check_llm_available,
     check_setup, is_first_run, mark_setup_done, run_setup_wizard,
@@ -49,7 +49,7 @@ class TestDependencyChecks:
         assert isinstance(dep.available, bool)
 
     def test_keanu_home(self, tmp_path):
-        with patch("keanu.infra.firstrun.keanu_home", return_value=tmp_path / "keanu"):
+        with patch("keanu.abilities.world.firstrun.keanu_home", return_value=tmp_path / "keanu"):
             dep = check_keanu_home()
             assert dep.available
             assert dep.required
@@ -102,8 +102,8 @@ class TestSetupStatus:
 class TestCheckSetup:
 
     def test_returns_status(self, tmp_path):
-        with patch("keanu.infra.firstrun.keanu_home", return_value=tmp_path / "keanu"):
-            with patch("keanu.infra.firstrun._SETUP_DONE_FILE", tmp_path / ".done"):
+        with patch("keanu.abilities.world.firstrun.keanu_home", return_value=tmp_path / "keanu"):
+            with patch("keanu.abilities.world.firstrun._SETUP_DONE_FILE", tmp_path / ".done"):
                 status = check_setup()
                 assert isinstance(status, SetupStatus)
                 assert len(status.dependencies) >= 5
@@ -112,18 +112,18 @@ class TestCheckSetup:
 class TestFirstRun:
 
     def test_is_first_run(self, tmp_path):
-        with patch("keanu.infra.firstrun._SETUP_DONE_FILE", tmp_path / ".done"):
+        with patch("keanu.abilities.world.firstrun._SETUP_DONE_FILE", tmp_path / ".done"):
             assert is_first_run()
 
     def test_not_first_run(self, tmp_path):
         done_file = tmp_path / ".done"
         done_file.write_text("done\n")
-        with patch("keanu.infra.firstrun._SETUP_DONE_FILE", done_file):
+        with patch("keanu.abilities.world.firstrun._SETUP_DONE_FILE", done_file):
             assert not is_first_run()
 
     def test_mark_setup_done(self, tmp_path):
         done_file = tmp_path / ".done"
-        with patch("keanu.infra.firstrun._SETUP_DONE_FILE", done_file):
+        with patch("keanu.abilities.world.firstrun._SETUP_DONE_FILE", done_file):
             mark_setup_done()
             assert done_file.exists()
 
@@ -132,8 +132,8 @@ class TestSetupWizard:
 
     def test_wizard_marks_done(self, tmp_path):
         done_file = tmp_path / ".done"
-        with patch("keanu.infra.firstrun._SETUP_DONE_FILE", done_file):
-            with patch("keanu.infra.firstrun.keanu_home", return_value=tmp_path / "keanu"):
+        with patch("keanu.abilities.world.firstrun._SETUP_DONE_FILE", done_file):
+            with patch("keanu.abilities.world.firstrun.keanu_home", return_value=tmp_path / "keanu"):
                 status = run_setup_wizard()
                 if status.ready:
                     assert done_file.exists()
@@ -165,7 +165,7 @@ class TestFormatting:
         assert "missing required" in text
 
     def test_quickstart(self, tmp_path):
-        with patch("keanu.infra.firstrun.keanu_home", return_value=tmp_path / "keanu"):
-            with patch("keanu.infra.firstrun._SETUP_DONE_FILE", tmp_path / ".done"):
+        with patch("keanu.abilities.world.firstrun.keanu_home", return_value=tmp_path / "keanu"):
+            with patch("keanu.abilities.world.firstrun._SETUP_DONE_FILE", tmp_path / ".done"):
                 text = get_quickstart()
                 assert "keanu" in text

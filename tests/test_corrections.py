@@ -3,7 +3,7 @@
 import json
 from unittest.mock import patch
 
-from keanu.infra.corrections import (
+from keanu.abilities.world.corrections import (
     detect_pattern, log_correction, load_corrections, correction_patterns,
     load_style_prefs, style_prompt_injection, Correction, StylePreference,
     _is_camel, _is_snake,
@@ -59,8 +59,8 @@ class TestLogCorrection:
         corrections_file = tmp_path / "corrections.jsonl"
         style_file = tmp_path / "style_prefs.json"
 
-        with patch("keanu.infra.corrections._CORRECTIONS_FILE", corrections_file):
-            with patch("keanu.infra.corrections._STYLE_FILE", style_file):
+        with patch("keanu.abilities.world.corrections._CORRECTIONS_FILE", corrections_file):
+            with patch("keanu.abilities.world.corrections._STYLE_FILE", style_file):
                 log_correction("test.py", "x = 'a'", 'x = "a"')
                 log_correction("test2.py", "y = 'b'", 'y = "b"')
 
@@ -73,8 +73,8 @@ class TestLogCorrection:
         corrections_file = tmp_path / "corrections.jsonl"
         style_file = tmp_path / "style_prefs.json"
 
-        with patch("keanu.infra.corrections._CORRECTIONS_FILE", corrections_file):
-            with patch("keanu.infra.corrections._STYLE_FILE", style_file):
+        with patch("keanu.abilities.world.corrections._CORRECTIONS_FILE", corrections_file):
+            with patch("keanu.abilities.world.corrections._STYLE_FILE", style_file):
                 log_correction("a.py", "x = 'a'", 'x = "a"')
                 log_correction("b.py", "y = 'b'", 'y = "b"')
                 log_correction("c.py", "z = 'c'", 'z = "c"')
@@ -89,15 +89,15 @@ class TestStylePrefs:
 
     def test_load_empty(self, tmp_path):
         style_file = tmp_path / "style_prefs.json"
-        with patch("keanu.infra.corrections._STYLE_FILE", style_file):
+        with patch("keanu.abilities.world.corrections._STYLE_FILE", style_file):
             assert load_style_prefs() == []
 
     def test_prefs_accumulate(self, tmp_path):
         corrections_file = tmp_path / "corrections.jsonl"
         style_file = tmp_path / "style_prefs.json"
 
-        with patch("keanu.infra.corrections._CORRECTIONS_FILE", corrections_file):
-            with patch("keanu.infra.corrections._STYLE_FILE", style_file):
+        with patch("keanu.abilities.world.corrections._CORRECTIONS_FILE", corrections_file):
+            with patch("keanu.abilities.world.corrections._STYLE_FILE", style_file):
                 # log same pattern 3 times
                 for i in range(3):
                     log_correction(f"f{i}.py", f"x{i} = 'a'", f'x{i} = "a"')
@@ -117,7 +117,7 @@ class TestStylePrefs:
             "confidence": 0.9,
         }]))
 
-        with patch("keanu.infra.corrections._STYLE_FILE", style_file):
+        with patch("keanu.abilities.world.corrections._STYLE_FILE", style_file):
             injection = style_prompt_injection()
 
         assert "prefer_double_quotes" in injection
@@ -132,7 +132,7 @@ class TestStylePrefs:
             "confidence": 0.3,
         }]))
 
-        with patch("keanu.infra.corrections._STYLE_FILE", style_file):
+        with patch("keanu.abilities.world.corrections._STYLE_FILE", style_file):
             injection = style_prompt_injection()
 
         assert injection == ""

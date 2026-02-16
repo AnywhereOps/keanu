@@ -27,7 +27,7 @@ DEFAULTS = {
     "model": "claude-sonnet-4-5-20250929",
     "local_model": "llama3.2",
     "legend": "creator",
-    "max_turns": 25,
+    "max_turns": 0,
     "temperature": 0.7,
     "prefer_local": False,
     "auto_bake": True,
@@ -218,7 +218,7 @@ def init_project_config(root: str = ".") -> str:
 
     default_project = {
         "legend": "creator",
-        "max_turns": 25,
+        "max_turns": 0,
     }
     save_project(default_project, root)
     return str(config_path)

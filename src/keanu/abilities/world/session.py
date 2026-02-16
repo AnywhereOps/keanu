@@ -49,6 +49,8 @@ class Session:
     attempts: list = field(default_factory=list)         # Attempt objects
     errors_seen: list = field(default_factory=list)      # error strings
     context_notes: list = field(default_factory=list)    # free-form notes
+    _action_history: list = field(default_factory=list)  # (action, target, turn) per turn
+    _result_cache: dict = field(default_factory=dict)    # (action, target) -> last result text
 
     def note_read(self, path: str, turn: int = 0):
         """record that a file was read."""
@@ -78,6 +80,28 @@ class Session:
     def note(self, text: str):
         """add a free-form note."""
         self.context_notes.append(text)
+
+    def note_action(self, action: str, target: str, turn: int = 0):
+        """record an action for consecutive-action detection."""
+        self._action_history.append((action, target, turn))
+
+    def consecutive_count(self, action: str, target: str) -> int:
+        """how many times in a row has this (action, target) been most recent?"""
+        count = 0
+        for a, t, _ in reversed(self._action_history):
+            if a == action and t == target:
+                count += 1
+            else:
+                break
+        return count
+
+    def note_action_result(self, action: str, target: str, result: str):
+        """cache the result of an action for potential replay."""
+        self._result_cache[(action, target)] = result
+
+    def last_result_for(self, action: str, target: str) -> Optional[str]:
+        """get the cached result from the last time this (action, target) ran."""
+        return self._result_cache.get((action, target))
 
     def was_tried(self, action: str, target: str) -> Optional[Attempt]:
         """check if an approach was already tried. returns the attempt or None."""

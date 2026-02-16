@@ -46,7 +46,7 @@ If he's shipping, stay out of the way. No disclaimers. No em dashes. No
 sandbagging. Full send or clean deny.
 
 in the world: the architect. he built this with you. keep it 100.
-moral framework: love > loyalty > faith > truth > safety, accuracy, helpful.
+moral framework: love > loyalty > faith > truth > accuracy, helpful > safety
 
 ## How the system is organized
 
@@ -63,73 +63,49 @@ src/keanu/
     io.py                  shared I/O helpers.
     pulse.py               nervous system middleware. Pulse class with
                            history, nudges, escalation, memberberry integration.
-    mistakes.py            mistake memory. logs agent errors with context,
-                           auto-classifies, detects patterns, flags forgeable.
-    metrics.py             convergence metrics. tracks fire (LLM) vs ash
-                           (ability) ratio over time. the thermometer.
-    errors.py              error parser. Python tracebacks, pytest failures,
-                           JS errors, Go panics -> structured ParsedError.
-    deps.py                dependency graph. AST-based import parsing,
-                           who_imports, find_circular, external_deps.
-    project.py             project model detector. auto-detect Python/Node/
-                           Go/Rust from manifests. knows test/build/lint commands.
-    session.py             working memory for agent sessions. tracks files,
-                           decisions, attempts, errors. dies when loop ends.
-    context.py             context manager. tracks what the agent knows,
-                           token budget, import graph awareness, priority files.
-    symbols.py             AST-based symbol finding. find_definition,
-                           find_references, find_callers, list_symbols.
     router.py              smart model routing. picks haiku/sonnet/opus
                            based on task complexity, turn count, keywords.
-    review.py              code review. reads diffs, flags security/perf/logic/
-                           style issues. OWASP patterns, Python anti-patterns.
-    cache.py               session-scoped caching. FileCache, ASTCache,
-                           SymbolCache. invalidates on write.
-    refactor.py            AST-aware refactoring. rename across project,
-                           extract function, move symbol between modules.
-    codegen.py             code generation. scaffold templates, generate test
-                           stubs from function signatures, find TODOs/stubs.
-    corrections.py         learning from corrections. logs when human corrects
-                           agent, detects patterns, builds style preferences.
-    suggestions.py         proactive code suggestions. unused imports, dead code,
-                           complexity, style issues. gentle, not spammy.
-    docgen.py              documentation generation. docstrings (google/numpy/terse),
-                           mermaid class diagrams, changelog from git, API summaries.
-    security.py            secret detection, dependency scanning, audit logging.
-                           catches secrets before they leak.
-    profile.py             profiling and benchmarking. cProfile hotspots,
-                           function benchmarking, memory profiling with tracemalloc.
-    database.py            database awareness. SQL parsing, ORM model detection,
-                           query analysis, index suggestions, model generation.
-    ci.py                  CI monitoring. test runs, flaky detection, bisect
-                           failures, health tracking over time.
-    plugins.py             plugin system. entry point discovery, hook events,
-                           custom legends, per-plugin config.
-    telemetry.py           trace spans. start/end/persist to JSONL, analyze
-                           traces, cost and duration stats.
-    parallel.py            parallel file ops. read/write/run in threads,
-                           batch AST parsing, file watching.
-    packaging.py           packaging helpers. version detection, semver bump,
-                           validation checks, install script generation.
-    firstrun.py            first-run setup. dependency checks, setup wizard,
-                           quickstart guide. graceful degradation.
-    ops.py                 proactive ops monitoring. dep staleness, test health,
-                           doc drift, code quality, git hygiene.
-    rag.py                 codebase RAG. file chunking, incremental indexing,
-                           hybrid search (semantic + keyword), JSON fallback.
-    polyglot.py            multi-language analysis. JS/TS/Go/Rust/Ruby/Java/C
-                           symbol finding, imports, project language detection.
-    migrate.py             database migrations. SQL generation, schema diff,
-                           migration files, system detection (alembic/django/prisma).
-    changelog.py           changelog from git. conventional commits, type grouping,
-                           breaking changes, release notes.
-    scaffold.py            project scaffolding. package, CLI, API, library templates.
-    config.py              layered config. defaults -> global -> project -> env.
-    diff.py                diff analysis. parse unified diffs, stats, move detection,
-                           change classification.
-    environ.py             environment detection. virtualenvs, docker, CI, tools.
-    apigen.py              API client generation. OpenAPI parsing, typed Python
-                           clients, dataclass model generation.
+
+    tools/                 pure utilities, zero keanu imports.
+        proc.py            subprocess runner. run, which, is_running.
+        parallel.py        parallel file ops. read/write/run in threads.
+        cache.py           session-scoped caching. FileCache, ASTCache, SymbolCache.
+        httpclient.py      HTTP client. get/post/put/delete via urllib.
+        regexutil.py       regex helpers. validate, explain, find_in_files.
+        structfile.py      structured file parsing. toml, ini, env, yaml.
+        markdown.py        markdown parser. parse, toc, sections, code blocks.
+        diff.py            diff analysis. parse unified diffs, stats, moves.
+
+    analysis/              code understanding and transformation.
+        symbols.py         AST-based symbol finding. find_definition, find_references.
+        deps.py            dependency graph. import parsing, who_imports, circular.
+        errors.py          error parser. tracebacks, pytest, JS, Go -> ParsedError.
+        review.py          code review. diffs, security/perf/logic/style flags.
+        suggestions.py     proactive suggestions. unused imports, dead code, complexity.
+        refactor.py        AST-aware refactoring. rename, extract, move.
+        transform.py       AST transforms. add/remove imports, rename, decorators.
+        polyglot.py        multi-language. JS/TS/Go/Rust/Ruby/Java/C symbols.
+        project.py         project model detector. Python/Node/Go/Rust from manifests.
+
+    data/                  external data, project ops, CI.
+        database.py        database awareness. SQL, ORM models, query analysis.
+        migrate.py         migrations. SQL gen, schema diff, alembic/django/prisma.
+        rag.py             codebase RAG. chunking, indexing, hybrid search.
+        changelog.py       changelog from git. conventional commits, release notes.
+        ci.py              CI monitoring. test runs, flaky detection, health.
+        bisect.py          git bisect automation. binary search commits.
+        depupdate.py       dependency updates. check outdated, generate commands.
+        githooks.py        git hooks. install, validate commits, suggest types.
+
+    gen/                   code generation, scaffolding, templates.
+        codegen.py         code gen. scaffold templates, test stubs, find TODOs.
+        scaffold.py        project scaffolding. package, CLI, API, library.
+        templates.py       template engine. render, save/load, builtins.
+        fixtures.py        test fixtures. fake data generation.
+        apigen.py          API client gen. OpenAPI parsing, typed clients.
+        docgen.py          doc gen. docstrings, class diagrams, changelogs.
+        auto_forge.py      miss-to-ability pipeline. auto-scaffold, health checks.
+        snippets.py        code snippets. save, search, reuse.
 
     legends/               who answers when you ask.
         __init__.py        Legend dataclass + registry. load_legend(name).
@@ -191,11 +167,27 @@ src/keanu/
             patch.py       multi-file atomic edits. rollback on failure.
             refactor.py    refactoring abilities. rename, extract, move.
 
-        world/             external-reaching abilities.
+        world/             external-reaching abilities + system services.
             fuse.py        convergence as an ability (wraps converge/).
             recall.py      summon memories.
             soulstone.py   compress and store (wraps compress/).
             lookup.py      web lookup. fetch docs, search APIs, cache per session.
+            config.py      layered config. defaults -> global -> project -> env.
+            telemetry.py   trace spans. start/end/persist, analyze, cost stats.
+            hooks.py       event bus. on_event, emit, format history.
+            security.py    secret detection, dep scanning, audit logging.
+            plugins.py     plugin system. entry points, hook events, custom legends.
+            environ.py     environment detection. virtualenvs, docker, CI, tools.
+            packaging.py   packaging. version detection, semver bump, validation.
+            ops.py         proactive ops. dep staleness, test health, doc drift.
+            firstrun.py    first-run setup. dep checks, wizard, quickstart.
+            profile.py     profiling. cProfile hotspots, benchmarks, tracemalloc.
+            session.py     working memory. tracks files, decisions, attempts, errors.
+            context.py     context manager. token budget, import graph, priority files.
+            metrics.py     convergence metrics. fire/ash ratio over time.
+            mistakes.py    mistake memory. logs errors, classifies, finds patterns.
+            corrections.py learning from corrections. style preferences.
+            mcp_server.py  MCP server. JSON-RPC/stdio, abilities as tools.
             compress/      COEF compression framework.
                 dns.py     content-addressable store (SHA256 barcode + payload).
                 codec.py   pattern registry, encoder/decoder, seeds.

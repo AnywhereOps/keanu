@@ -93,7 +93,7 @@ def _default_pre_commit_commands() -> list[str]:
         'python3 -m ruff format --check . 2>/dev/null || echo "format check skipped"',
         "",
         "# security: check for secrets in staged files",
-        'python3 -c "from keanu.infra.security import check_secrets_in_staged; findings = check_secrets_in_staged(); exit(1) if findings else exit(0)" 2>/dev/null || true',
+        'python3 -c "from keanu.abilities.world.security import check_secrets_in_staged; findings = check_secrets_in_staged(); exit(1) if findings else exit(0)" 2>/dev/null || true',
     ]
 
 

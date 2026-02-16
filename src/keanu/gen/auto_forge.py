@@ -111,7 +111,7 @@ def analyze_mistakes(min_count: int = 3) -> list[ForgeCandidate]:
     be an ability that handles it.
     """
     try:
-        from keanu.infra.mistakes import get_patterns
+        from keanu.abilities.world.mistakes import get_patterns
     except ImportError:
         return []
 
@@ -316,7 +316,7 @@ def check_project_health(root: str = ".") -> dict:
 
     # check for mistake patterns
     try:
-        from keanu.infra.mistakes import get_patterns
+        from keanu.abilities.world.mistakes import get_patterns
         forgeable = [p for p in get_patterns() if p.get("forgeable")]
         if forgeable:
             health["issues"].append({

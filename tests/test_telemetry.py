@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from keanu.infra.telemetry import (
+from keanu.abilities.world.telemetry import (
     Span, start_span, end_span, get_active_spans, trace_span,
     get_spans, analyze_traces, trace_summary, TraceStats,
     _ACTIVE_SPANS,
@@ -49,7 +49,7 @@ class TestSpanManagement:
 
     def test_start_and_end(self, tmp_path):
         log_file = tmp_path / "spans.jsonl"
-        with patch("keanu.infra.telemetry._SPANS_LOG", log_file):
+        with patch("keanu.abilities.world.telemetry._SPANS_LOG", log_file):
             span = start_span("test_op", model="opus")
             assert span.span_id in _ACTIVE_SPANS
             assert span.attributes["model"] == "opus"
@@ -71,7 +71,7 @@ class TestTraceSpan:
 
     def test_context_manager(self, tmp_path):
         log_file = tmp_path / "spans.jsonl"
-        with patch("keanu.infra.telemetry._SPANS_LOG", log_file):
+        with patch("keanu.abilities.world.telemetry._SPANS_LOG", log_file):
             with trace_span("test_block") as span:
                 span.add_event("inside")
             assert span.end_time > 0
@@ -79,7 +79,7 @@ class TestTraceSpan:
 
     def test_captures_error(self, tmp_path):
         log_file = tmp_path / "spans.jsonl"
-        with patch("keanu.infra.telemetry._SPANS_LOG", log_file):
+        with patch("keanu.abilities.world.telemetry._SPANS_LOG", log_file):
             try:
                 with trace_span("error_block") as span:
                     raise ValueError("test error")
@@ -93,7 +93,7 @@ class TestPersistence:
 
     def test_write_and_read(self, tmp_path):
         log_file = tmp_path / "spans.jsonl"
-        with patch("keanu.infra.telemetry._SPANS_LOG", log_file):
+        with patch("keanu.abilities.world.telemetry._SPANS_LOG", log_file):
             span = start_span("op1")
             end_span(span)
             span2 = start_span("op2")
@@ -105,13 +105,13 @@ class TestPersistence:
 
     def test_empty_log(self, tmp_path):
         log_file = tmp_path / "spans.jsonl"
-        with patch("keanu.infra.telemetry._SPANS_LOG", log_file):
+        with patch("keanu.abilities.world.telemetry._SPANS_LOG", log_file):
             spans = get_spans()
         assert spans == []
 
     def test_filter_by_trace(self, tmp_path):
         log_file = tmp_path / "spans.jsonl"
-        with patch("keanu.infra.telemetry._SPANS_LOG", log_file):
+        with patch("keanu.abilities.world.telemetry._SPANS_LOG", log_file):
             s1 = start_span("a", trace_id="trace1")
             end_span(s1)
             s2 = start_span("b", trace_id="trace2")
@@ -155,7 +155,7 @@ class TestTraceSummary:
 
     def test_returns_dict(self, tmp_path):
         log_file = tmp_path / "spans.jsonl"
-        with patch("keanu.infra.telemetry._SPANS_LOG", log_file):
+        with patch("keanu.abilities.world.telemetry._SPANS_LOG", log_file):
             summary = trace_summary(days=7)
         assert "period_days" in summary
         assert summary["total_spans"] == 0

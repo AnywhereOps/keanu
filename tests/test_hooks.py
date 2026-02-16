@@ -1,7 +1,7 @@
 """Tests for hooks.py - the event bus."""
 
-import keanu.infra.hooks as hooks
-from keanu.infra.hooks import Event, EventBus, on_event, format_history
+import keanu.abilities.world.hooks as hooks
+from keanu.abilities.world.hooks import Event, EventBus, on_event, format_history
 
 
 class TestEventBus:

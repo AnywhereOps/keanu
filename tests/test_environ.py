@@ -4,7 +4,7 @@ import os
 import sys
 from unittest.mock import patch
 
-from keanu.infra.environ import (
+from keanu.abilities.world.environ import (
     detect_python, detect_virtualenv, detect_docker, detect_ci,
     detect_shell, detect_tools, detect_project_root,
     detect_environment, format_environment,

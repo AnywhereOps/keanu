@@ -4,7 +4,7 @@ import json
 import os
 from unittest.mock import patch
 
-from keanu.infra.config import (
+from keanu.abilities.world.config import (
     Config, DEFAULTS,
     load_global, save_global, load_project, save_project,
     load_config, get_value, set_global_value, set_project_value,
@@ -47,12 +47,12 @@ class TestConfig:
 class TestGlobalConfig:
 
     def test_load_empty(self, tmp_path):
-        with patch("keanu.infra.config._GLOBAL_CONFIG", tmp_path / "config.json"):
+        with patch("keanu.abilities.world.config._GLOBAL_CONFIG", tmp_path / "config.json"):
             assert load_global() == {}
 
     def test_save_and_load(self, tmp_path):
         config_file = tmp_path / "config.json"
-        with patch("keanu.infra.config._GLOBAL_CONFIG", config_file):
+        with patch("keanu.abilities.world.config._GLOBAL_CONFIG", config_file):
             save_global({"model": "opus", "max_turns": 50})
             loaded = load_global()
             assert loaded["model"] == "opus"
@@ -61,7 +61,7 @@ class TestGlobalConfig:
     def test_corrupt_file(self, tmp_path):
         config_file = tmp_path / "config.json"
         config_file.write_text("not json")
-        with patch("keanu.infra.config._GLOBAL_CONFIG", config_file):
+        with patch("keanu.abilities.world.config._GLOBAL_CONFIG", config_file):
             assert load_global() == {}
 
 
@@ -83,7 +83,7 @@ class TestProjectConfig:
 class TestLoadConfig:
 
     def test_defaults_only(self, tmp_path):
-        with patch("keanu.infra.config._GLOBAL_CONFIG", tmp_path / "global.json"):
+        with patch("keanu.abilities.world.config._GLOBAL_CONFIG", tmp_path / "global.json"):
             config = load_config(str(tmp_path))
             assert config.get("model") == DEFAULTS["model"]
             assert config.source == "defaults"
@@ -91,7 +91,7 @@ class TestLoadConfig:
     def test_global_override(self, tmp_path):
         global_file = tmp_path / "global.json"
         global_file.write_text(json.dumps({"model": "opus"}))
-        with patch("keanu.infra.config._GLOBAL_CONFIG", global_file):
+        with patch("keanu.abilities.world.config._GLOBAL_CONFIG", global_file):
             config = load_config(str(tmp_path))
             assert config.get("model") == "opus"
             assert config.source == "global"
@@ -104,7 +104,7 @@ class TestLoadConfig:
         project.mkdir()
         save_project({"model": "haiku"}, str(project))
 
-        with patch("keanu.infra.config._GLOBAL_CONFIG", global_file):
+        with patch("keanu.abilities.world.config._GLOBAL_CONFIG", global_file):
             config = load_config(str(project))
             assert config.get("model") == "haiku"
             assert config.source == "project"
@@ -113,7 +113,7 @@ class TestLoadConfig:
         global_file = tmp_path / "global.json"
         global_file.write_text(json.dumps({"model": "opus"}))
 
-        with patch("keanu.infra.config._GLOBAL_CONFIG", global_file):
+        with patch("keanu.abilities.world.config._GLOBAL_CONFIG", global_file):
             with patch.dict(os.environ, {"KEANU_MODEL": "env-model"}):
                 config = load_config(str(tmp_path))
                 assert config.get("model") == "env-model"
@@ -149,12 +149,12 @@ class TestEnvOverrides:
 class TestHelpers:
 
     def test_get_value(self, tmp_path):
-        with patch("keanu.infra.config._GLOBAL_CONFIG", tmp_path / "g.json"):
+        with patch("keanu.abilities.world.config._GLOBAL_CONFIG", tmp_path / "g.json"):
             val = get_value("model", str(tmp_path))
             assert val == DEFAULTS["model"]
 
     def test_set_global_value(self, tmp_path):
-        with patch("keanu.infra.config._GLOBAL_CONFIG", tmp_path / "g.json"):
+        with patch("keanu.abilities.world.config._GLOBAL_CONFIG", tmp_path / "g.json"):
             set_global_value("model", "opus")
             assert load_global()["model"] == "opus"
 
@@ -165,7 +165,7 @@ class TestHelpers:
     def test_list_config(self, tmp_path):
         global_file = tmp_path / "g.json"
         global_file.write_text(json.dumps({"model": "opus"}))
-        with patch("keanu.infra.config._GLOBAL_CONFIG", global_file):
+        with patch("keanu.abilities.world.config._GLOBAL_CONFIG", global_file):
             listing = list_config(str(tmp_path))
             assert listing["model"]["value"] == "opus"
             assert listing["model"]["source"] == "global"

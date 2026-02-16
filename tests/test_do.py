@@ -336,3 +336,105 @@ class TestLoopResult:
     def test_not_ok_when_max_turns(self):
         r = LoopResult(task="t", status="max_turns")
         assert not r.ok
+
+
+# ============================================================
+# Awareness escalation
+# ============================================================
+
+class TestAwarenessEscalation:
+
+    @patch("keanu.hero.do.call_oracle")
+    @patch("keanu.hero.do.Feel")
+    @patch("keanu.hero.do._REGISTRY")
+    def test_second_consecutive_injects_awareness(self, mock_registry, MockFeel, mock_oracle):
+        """second consecutive same action+target: awareness injected into next prompt."""
+        mock_ab = MagicMock()
+        mock_ab.execute.return_value = {"success": True, "result": "file contents", "data": {}}
+        mock_ab.cast_line = ""
+        mock_registry.get.return_value = mock_ab
+
+        responses = [
+            json_response(action="read", args={"file_path": "x.py"}),
+            json_response(action="read", args={"file_path": "x.py"}),
+            json_response(done=True, answer="done"),
+        ]
+        mock_oracle.side_effect = responses
+        MockFeel.return_value.check.side_effect = [
+            make_feel_check_result("") for _ in responses
+        ]
+
+        loop = AgentLoop(max_turns=5)
+        result = loop.run("read x.py twice")
+
+        # awareness injected during turn 1, visible in the third oracle call prompt
+        third_prompt = mock_oracle.call_args_list[2][0][0]
+        assert "[AWARENESS]" in third_prompt
+        assert "twice" in third_prompt.lower()
+
+    @patch("keanu.hero.do.call_oracle")
+    @patch("keanu.hero.do.Feel")
+    @patch("keanu.hero.do._REGISTRY")
+    def test_third_repeat_returns_cached(self, mock_registry, MockFeel, mock_oracle):
+        """3rd consecutive repeat: cached result returned, no execution."""
+        mock_ab = MagicMock()
+        mock_ab.execute.return_value = {"success": True, "result": "file contents", "data": {}}
+        mock_ab.cast_line = ""
+        mock_registry.get.return_value = mock_ab
+
+        responses = [
+            json_response(action="read", args={"file_path": "x.py"}),
+            json_response(action="read", args={"file_path": "x.py"}),
+            json_response(action="read", args={"file_path": "x.py"}),
+            json_response(done=True, answer="ok"),
+        ]
+        mock_oracle.side_effect = responses
+        MockFeel.return_value.check.side_effect = [
+            make_feel_check_result("") for _ in responses
+        ]
+
+        loop = AgentLoop(max_turns=10)
+        result = loop.run("read x.py three times")
+
+        # ability should only be called twice (3rd is cached)
+        assert mock_ab.execute.call_count == 2
+
+    @patch("keanu.hero.do.call_oracle")
+    @patch("keanu.hero.do.Feel")
+    def test_unlimited_turns_with_done(self, MockFeel, mock_oracle):
+        """max_turns=0 means unlimited. loop stops on done=true."""
+        mock_oracle.return_value = json_response(thinking="easy", done=True, answer="42")
+        MockFeel.return_value.check.return_value = make_feel_check_result("easy")
+
+        loop = AgentLoop(max_turns=0)
+        result = loop.run("simple")
+
+        assert result.ok
+        assert result.status == "done"
+
+    @patch("keanu.hero.do.call_oracle")
+    @patch("keanu.hero.do.Feel")
+    @patch("keanu.hero.do._REGISTRY")
+    def test_different_action_breaks_streak(self, mock_registry, MockFeel, mock_oracle):
+        """interleaving a different action resets consecutive count."""
+        mock_ab = MagicMock()
+        mock_ab.execute.return_value = {"success": True, "result": "ok", "data": {}}
+        mock_ab.cast_line = ""
+        mock_registry.get.return_value = mock_ab
+
+        responses = [
+            json_response(action="read", args={"file_path": "x.py"}),
+            json_response(action="search", args={"pattern": "foo"}),
+            json_response(action="read", args={"file_path": "x.py"}),
+            json_response(done=True, answer="done"),
+        ]
+        mock_oracle.side_effect = responses
+        MockFeel.return_value.check.side_effect = [
+            make_feel_check_result("") for _ in responses
+        ]
+
+        loop = AgentLoop(max_turns=10)
+        result = loop.run("test")
+
+        # ability should be called 3 times (no caching since streak was broken)
+        assert mock_ab.execute.call_count == 3

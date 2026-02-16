@@ -71,13 +71,48 @@ class ReadFileAbility(Ability):
         if not _is_safe_path(path):
             return {"success": False, "result": f"Path outside project: {path}", "data": {}}
 
+        line_offset = int(context.get("line_offset", 0)) if context else 0
+        line_limit = int(context.get("line_limit", 0)) if context else 0
+
         try:
-            content = Path(path).read_text()
-            lines = content.count("\n") + 1
+            raw = Path(path).read_text()
+            total_chars = len(raw)
+            lines = raw.splitlines(keepends=True)
+            total_lines = len(lines)
+
+            # slice if requested
+            if line_offset or line_limit:
+                start = max(0, line_offset)
+                end = start + line_limit if line_limit else len(lines)
+                content = "".join(lines[start:min(end, len(lines))])
+                shown_lines = min(end, total_lines) - start
+            else:
+                content = raw
+                shown_lines = total_lines
+
+            truncated = False
+            if len(content) > 10000:
+                content = content[:10000]
+                truncated = True
+
+            result_text = content
+            if truncated:
+                result_text += (
+                    f"\n\n[FILE TRUNCATED: showing first 10000 of {total_chars} chars"
+                    f" ({total_lines} total lines)."
+                    f" use line_offset/line_limit to read further sections.]"
+                )
+
             return {
                 "success": True,
-                "result": content,
-                "data": {"path": path, "lines": lines, "size": len(content)},
+                "result": result_text,
+                "data": {
+                    "path": path,
+                    "lines": total_lines,
+                    "size": total_chars,
+                    "truncated": truncated,
+                    "shown_lines": shown_lines,
+                },
             }
         except (OSError, IOError) as e:
             return {"success": False, "result": f"Could not read: {e}", "data": {}}

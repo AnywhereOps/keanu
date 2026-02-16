@@ -1,6 +1,6 @@
 """tests for packaging and distribution."""
 
-from keanu.infra.packaging import (
+from keanu.abilities.world.packaging import (
     get_version, bump_version, validate_package,
     generate_install_script, _detect_package_name,
     PackageCheck, PackageReport,

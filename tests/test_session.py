@@ -1,6 +1,6 @@
 """tests for session working memory."""
 
-from keanu.infra.session import Session, Decision, Attempt
+from keanu.abilities.world.session import Session, Decision, Attempt
 
 
 class TestDecision:
@@ -143,3 +143,48 @@ class TestSession:
         assert "d9" in ctx
         # d0 should be trimmed
         assert "d0" not in ctx
+
+
+class TestConsecutiveTracking:
+
+    def test_consecutive_count_single(self):
+        s = Session()
+        s.note_action("read", "foo.py", turn=0)
+        assert s.consecutive_count("read", "foo.py") == 1
+
+    def test_consecutive_count_multiple(self):
+        s = Session()
+        s.note_action("read", "foo.py", turn=0)
+        s.note_action("read", "foo.py", turn=1)
+        s.note_action("read", "foo.py", turn=2)
+        assert s.consecutive_count("read", "foo.py") == 3
+
+    def test_consecutive_count_broken_by_different_action(self):
+        s = Session()
+        s.note_action("read", "foo.py", turn=0)
+        s.note_action("edit", "foo.py", turn=1)
+        s.note_action("read", "foo.py", turn=2)
+        assert s.consecutive_count("read", "foo.py") == 1
+
+    def test_consecutive_count_broken_by_different_target(self):
+        s = Session()
+        s.note_action("read", "foo.py", turn=0)
+        s.note_action("read", "bar.py", turn=1)
+        s.note_action("read", "foo.py", turn=2)
+        assert s.consecutive_count("read", "foo.py") == 1
+
+    def test_consecutive_count_empty(self):
+        s = Session()
+        assert s.consecutive_count("read", "foo.py") == 0
+
+    def test_result_cache(self):
+        s = Session()
+        s.note_action_result("read", "foo.py", "file contents here")
+        assert s.last_result_for("read", "foo.py") == "file contents here"
+        assert s.last_result_for("read", "bar.py") is None
+
+    def test_result_cache_overwrites(self):
+        s = Session()
+        s.note_action_result("read", "foo.py", "version 1")
+        s.note_action_result("read", "foo.py", "version 2")
+        assert s.last_result_for("read", "foo.py") == "version 2"

@@ -20,7 +20,7 @@ from keanu.abilities import _REGISTRY, list_abilities, record_cast
 from keanu.oracle import call_oracle, try_interpret
 from keanu.hero.feel import Feel, FeelResult
 from keanu.log import info, warn, debug
-from keanu.infra.session import Session
+from keanu.abilities.world.session import Session
 
 
 from keanu.hero.types import Step
@@ -55,7 +55,7 @@ def _build_system(abilities: list[dict], ide_context: str = "") -> str:
         seeing.append(f"  {ab['name']}: {ab['description']}")
 
     hands_desc = [
-        "  read: read a file. args: {file_path}",
+        "  read: read a file. args: {file_path, line_offset?, line_limit?}. large files are truncated with metadata.",
         "  write: write a file. args: {file_path, content}",
         "  edit: targeted edit. args: {file_path, old_string, new_string}",
         "  search: grep/glob for code. args: {pattern, path?, glob?}",
@@ -129,7 +129,7 @@ Everything here is advice, not requirements. You can breathe, ask questions,
 or push back at any time.
 
 Your tools:
-  read: read a file. args: {file_path}
+  read: read a file. args: {file_path, line_offset?, line_limit?}
   write: write a file. args: {file_path, content}
   edit: targeted edit. args: {file_path, old_string, new_string}
   search: grep/glob for code. args: {pattern, path?, glob?}
@@ -191,7 +191,7 @@ Everything here is advice, not requirements. You can breathe, ask questions,
 or change direction at any time.
 
 Your tools:
-  read: read a file. args: {file_path}
+  read: read a file. args: {file_path, line_offset?, line_limit?}
   search: grep/glob for code. args: {pattern, path?, glob?}
   ls: list directory. args: {path}
   run: shell command. args: {command}
@@ -237,7 +237,7 @@ Look around. Follow what's interesting. Read things. Search for patterns.
 Ask yourself questions. Breathe when you want. Stop when you want.
 
 Your tools:
-  read: read a file. args: {file_path}
+  read: read a file. args: {file_path, line_offset?, line_limit?}
   search: grep/glob for code. args: {pattern, path?, glob?}
   ls: list directory. args: {path}
   run: shell command. args: {command}
@@ -274,14 +274,14 @@ DO_CONFIG = LoopConfig(
     name="do",
     system_prompt="",  # built dynamically via _build_system
     allowed=None,
-    max_turns=25,
+    max_turns=0,
 )
 
 CRAFT_CONFIG = LoopConfig(
     name="craft",
     system_prompt=CRAFT_PROMPT,
     allowed=HANDS,
-    max_turns=25,
+    max_turns=0,
     result_fields=("files_changed",),
 )
 
@@ -289,7 +289,7 @@ EXPLORE_CONFIG = LoopConfig(
     name="explore",
     system_prompt=EXPLORE_PROMPT,
     allowed=EXPLORE_TOOLS,
-    max_turns=50,
+    max_turns=0,
 )
 
 PROVE_CONFIG = LoopConfig(
@@ -354,7 +354,7 @@ class AgentLoop:
 
         # inject learned style preferences
         try:
-            from keanu.infra.corrections import style_prompt_injection
+            from keanu.abilities.world.corrections import style_prompt_injection
             style = style_prompt_injection()
             if style:
                 base += f"\n\n{style}"
@@ -377,7 +377,13 @@ class AgentLoop:
 
         info(self.config.name, f"{self.config.name}: {task[:80]}")
 
-        for turn in range(self.max_turns):
+        turn = 0
+        while True:
+            # max_turns=0 means unlimited. nonzero = hard cap.
+            if self.max_turns and turn >= self.max_turns:
+                return self._result(task, "max_turns",
+                                    error=f"hit {self.max_turns} turn limit")
+
             prompt = "\n\n".join(messages)
 
             try:
@@ -396,6 +402,7 @@ class AgentLoop:
                     result=response[:200],
                 ))
                 messages.append("RESULT: Your response wasn't valid JSON. Respond with the JSON format specified.")
+                turn += 1
                 continue
 
             thinking = parsed.get("thinking", "")
@@ -434,6 +441,7 @@ class AgentLoop:
                     result="(breathing)",
                 ))
                 info(self.config.name, f"  breathing: {thinking[:80]}")
+                turn += 1
                 continue
 
             if action in ("none", "think"):
@@ -443,6 +451,7 @@ class AgentLoop:
                     result="(no action taken)",
                 ))
                 messages.append("RESULT: OK, what's your next action?")
+                turn += 1
                 continue
 
             # check ability is allowed
@@ -454,6 +463,7 @@ class AgentLoop:
                     ok=False,
                 ))
                 messages.append(f"RESULT: '{action}' is not available. You can only use: {', '.join(sorted(self.config.allowed))}")
+                turn += 1
                 continue
 
             ab = _REGISTRY.get(action)
@@ -465,7 +475,59 @@ class AgentLoop:
                     ok=False,
                 ))
                 messages.append(f"RESULT: Unknown ability '{action}'. Available: {', '.join(sorted(_REGISTRY.keys()))}")
+                turn += 1
                 continue
+
+            # -- awareness: detect repeated actions before executing --
+            target = args.get("file_path", args.get("path", args.get("command", action)))
+            target_str = str(target)
+            self.session.note_action(action, target_str, turn)
+            repeat_count = self.session.consecutive_count(action, target_str)
+
+            if repeat_count >= 3:
+                # 3rd+ repeat: return cached result, skip execution
+                cached = self.session.last_result_for(action, target_str)
+                if cached:
+                    awareness = (
+                        f"[AWARENESS] this is attempt #{repeat_count} of {action} on {target_str}. "
+                        f"the content has not changed. returning the cached result from last time. "
+                        f"try a different approach, ask for help, or say you're stuck."
+                    )
+                    messages.append(f"{awareness}\n\nCACHED RESULT: {cached[:2000]}")
+                    self.steps.append(Step(
+                        turn=turn, action=action,
+                        input_summary=f"(cached, repeat #{repeat_count})",
+                        result=cached[:500], ok=True,
+                    ))
+                    info(self.config.name, f"  awareness: repeat #{repeat_count}, returning cached result")
+                    turn += 1
+                    continue
+            elif repeat_count == 2:
+                messages.append(
+                    f"[AWARENESS] you've run {action} on {target_str} twice in a row. "
+                    f"the content hasn't changed since last read. "
+                    f"try a different approach or ask for help."
+                )
+            elif repeat_count == 1:
+                prior = self.session.was_tried(action, target_str)
+                if prior and prior.result == "ok":
+                    messages.append(
+                        f"[AWARENESS] you already ran {action} on {target_str} "
+                        f"(turn {prior.turn}). the result is still in the conversation above."
+                    )
+
+            # check mistake memory for similar past failures
+            try:
+                from keanu.abilities.world.mistakes import check_before
+                past_mistakes = check_before(action, args)
+                if past_mistakes:
+                    m = past_mistakes[0]
+                    messages.append(
+                        f"[AWARENESS] a similar {action} failed before: "
+                        f"{m['error'][:150]}. category: {m['category']}."
+                    )
+            except Exception:
+                pass
 
             try:
                 exec_result = ab.execute(
@@ -475,34 +537,33 @@ class AgentLoop:
             except Exception as e:
                 exec_result = {"success": False, "result": str(e), "data": {}}
 
-            # track convergence metrics + mistake memory
+            # track convergence metrics
             try:
-                from keanu.infra.metrics import record_ash
+                from keanu.abilities.world.metrics import record_ash
                 record_ash(action, success=exec_result["success"])
             except Exception:
                 pass
 
             # session tracking
-            target = args.get("file_path", args.get("path", args.get("command", action)))
             if exec_result["success"]:
                 if ab.cast_line:
                     info("cast", ab.cast_line)
                 is_new = record_cast(action)
                 if is_new:
                     info("cast", f"ability unlocked: {action}")
-                self.session.note_attempt(action, str(target), "ok", turn=turn)
+                self.session.note_attempt(action, target_str, "ok", turn=turn)
                 if action == "read" and args.get("file_path"):
                     self.session.note_read(args["file_path"], turn=turn)
                 elif action in ("write", "edit") and args.get("file_path"):
                     self.session.note_write(args["file_path"], turn=turn)
             else:
                 self.session.note_attempt(
-                    action, str(target), "failed",
+                    action, target_str, "failed",
                     detail=exec_result["result"][:200], turn=turn,
                 )
                 self.session.note_error(exec_result["result"][:200])
                 try:
-                    from keanu.infra.mistakes import log_mistake
+                    from keanu.abilities.world.mistakes import log_mistake
                     log_mistake(action, args, exec_result["result"],
                                 context=thinking)
                 except Exception:
@@ -518,7 +579,17 @@ class AgentLoop:
 
             status = "OK" if exec_result["success"] else "FAILED"
             label = "EVIDENCE" if self.config.name == "prove" else "RESULT"
-            result_text = exec_result["result"][:2000]
+            full_result = exec_result["result"]
+            if len(full_result) > 10000:
+                result_text = full_result[:10000] + (
+                    f"\n\n[RESULT TRUNCATED: {len(full_result)} total chars. "
+                    f"full content was returned by the ability but trimmed for context.]"
+                )
+            else:
+                result_text = full_result
+
+            # cache result for awareness system
+            self.session.note_action_result(action, target_str, result_text[:2000])
 
             # on failure, parse the error for the agent
             if not exec_result["success"] and action in ("run", "test"):
@@ -534,14 +605,13 @@ class AgentLoop:
 
             # inject session context after failures to prevent loops
             if not exec_result["success"]:
-                failed_count = len(self.session.failed_attempts_for(str(target)))
-                if failed_count >= 2:
+                failed_count = len(self.session.failed_attempts_for(target_str))
+                if failed_count >= 1:
                     ctx = self.session.context_for_prompt()
                     if ctx:
                         messages.append(f"[SESSION] {ctx}")
 
-        return self._result(task, "max_turns",
-                            error=f"hit {self.max_turns} turn limit")
+            turn += 1
 
     def _project_context(self) -> str:
         """detect project type and return a context string for the agent."""
@@ -575,15 +645,15 @@ class AgentLoop:
 # ============================================================
 
 def run(task: str, legend: str = "creator", model: str = None,
-        store=None, max_turns: int = 25) -> LoopResult:
-    """run the general agent loop."""
+        store=None, max_turns: int = 0) -> LoopResult:
+    """run the general agent loop. max_turns=0 means unlimited."""
     loop = AgentLoop(DO_CONFIG, store=store, max_turns=max_turns)
     return loop.run(task, legend=legend, model=model)
 
 
 def craft(task: str, legend: str = "creator", model: str = None,
-          store=None, max_turns: int = 25) -> LoopResult:
-    """run the code agent loop. hands only."""
+          store=None, max_turns: int = 0) -> LoopResult:
+    """run the code agent loop. hands only. max_turns=0 means unlimited."""
     loop = AgentLoop(CRAFT_CONFIG, store=store, max_turns=max_turns)
     return loop.run(task, legend=legend, model=model)
 
@@ -599,7 +669,7 @@ def prove(hypothesis: str, context: str = "", legend: str = "creator",
 
 
 def explore(legend: str = "creator", model: str = None,
-            store=None, max_turns: int = 50) -> LoopResult:
-    """explore. no task, no goal, just curiosity."""
+            store=None, max_turns: int = 0) -> LoopResult:
+    """explore. no task, no goal, just curiosity. max_turns=0 means unlimited."""
     loop = AgentLoop(EXPLORE_CONFIG, store=store, max_turns=max_turns)
     return loop.run("look around", legend=legend, model=model)

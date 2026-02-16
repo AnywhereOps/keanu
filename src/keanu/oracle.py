@@ -256,7 +256,7 @@ def call_oracle(prompt, system="", legend="creator", model=None,
 
                 # track fire metrics (best-effort)
                 try:
-                    from keanu.infra.metrics import record_fire
+                    from keanu.abilities.world.metrics import record_fire
                     record_fire(prompt[:100], legend=leg.name, model=try_model,
                                 tokens=usage.total_tokens)
                 except Exception:
@@ -383,7 +383,7 @@ def _stream_cloud(prompt, system, legend, model, on_token, start_time):
     _session_cost.record(usage)
 
     try:
-        from keanu.infra.metrics import record_fire
+        from keanu.abilities.world.metrics import record_fire
         record_fire(prompt[:100], legend=legend.name if hasattr(legend, 'name') else str(legend),
                     model=model, tokens=usage.total_tokens)
     except Exception:

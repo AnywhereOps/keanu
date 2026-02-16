@@ -187,7 +187,7 @@ class Repl:
                 console.print("  [dim]health check unavailable[/dim]")
         elif command == "/metrics":
             try:
-                from keanu.infra.metrics import dashboard
+                from keanu.abilities.world.metrics import dashboard
                 d = dashboard(days=7)
                 console.print(f"  [dim]{d['message']}[/dim]")
             except Exception:

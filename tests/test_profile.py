@@ -2,7 +2,7 @@
 
 import time
 
-from keanu.infra.profile import (
+from keanu.abilities.world.profile import (
     profile_function, profile_script, benchmark, compare_benchmarks,
     profile_memory, find_slow_functions,
     ProfileResult, BenchmarkResult, MemoryResult, HotSpot,

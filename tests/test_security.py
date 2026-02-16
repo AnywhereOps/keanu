@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from keanu.infra.security import (
+from keanu.abilities.world.security import (
     scan_secrets, check_secrets_in_staged, is_sensitive_file,
     check_gitignore_coverage, log_audit, get_audit_log,
     _redact, _sanitize_args, SecretFinding,
@@ -135,7 +135,7 @@ class TestAuditLog:
 
     def test_log_and_read(self, tmp_path):
         log_file = tmp_path / "audit.jsonl"
-        with patch("keanu.infra.security._AUDIT_LOG", log_file):
+        with patch("keanu.abilities.world.security._AUDIT_LOG", log_file):
             log_audit("read", {"file": "test.py"}, "ok", 10)
             log_audit("write", {"file": "out.py"}, "ok", 20)
             entries = get_audit_log()
@@ -145,7 +145,7 @@ class TestAuditLog:
 
     def test_empty_log(self, tmp_path):
         log_file = tmp_path / "audit.jsonl"
-        with patch("keanu.infra.security._AUDIT_LOG", log_file):
+        with patch("keanu.abilities.world.security._AUDIT_LOG", log_file):
             entries = get_audit_log()
         assert entries == []
 

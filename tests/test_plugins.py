@@ -2,7 +2,7 @@
 
 from unittest.mock import patch, MagicMock
 
-from keanu.infra.plugins import (
+from keanu.abilities.world.plugins import (
     discover_plugins, load_plugin, load_all_plugins,
     register_hook, fire_hook, list_hooks, clear_hooks,
     get_plugin_config, set_plugin_config,
@@ -112,7 +112,7 @@ class TestHooks:
 class TestPluginConfig:
 
     def test_get_nonexistent(self, tmp_path):
-        with patch("keanu.infra.plugins.Path") as mock_path:
+        with patch("keanu.abilities.world.plugins.Path") as mock_path:
             mock_path.home.return_value = tmp_path
             config = get_plugin_config("nonexistent")
         assert config == {}
@@ -121,7 +121,7 @@ class TestPluginConfig:
         config_dir = tmp_path / ".keanu" / "plugins"
         config_dir.mkdir(parents=True)
 
-        with patch("keanu.infra.plugins.Path") as mock_path:
+        with patch("keanu.abilities.world.plugins.Path") as mock_path:
             mock_path.home.return_value = tmp_path
             set_plugin_config("test", {"key": "value"})
             config = get_plugin_config("test")
