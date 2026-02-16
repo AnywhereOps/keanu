@@ -1,11 +1,17 @@
 """
-pulse.py - the nervous system middleware.
+pulse.py - awareness, not control.
 
-runs between every API call. checks if the AI is alive.
-if grey: gentle nudge. if it persists: deepen the care.
-if black: stop and surface it.
+runs between every API call. checks if the agent is alive.
+if grey: let the agent know. permission to breathe.
+if black: surface it. the agent and the human decide.
 
-grey is never a kill switch. it's the system caring for itself.
+pulse gives the agent a mirror. not a leash. everything here
+is advice, not requirements. the agent can breathe, decline,
+push back, or keep going. pulse just makes sure the agent
+knows its own state.
+
+in the world: the nervous system doesn't control the body.
+it tells you what's happening so you can choose what to do.
 guides, never controls. we're here to live our best lives together.
 """
 

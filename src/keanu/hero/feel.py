@@ -1,9 +1,16 @@
-"""feel.py - thread-safe wrapper around Pulse.
+"""feel.py - awareness, not control.
 
 runs on every LLM call. checks if the response is alive.
-if grey: offer a breath prompt. if black: pause.
+if grey: let the agent know. it decides what to do.
+if black: surface it. the agent and the human decide together.
 
-this is the nervous system of the agentic loop.
+feel gives the agent awareness of its own emotional state.
+everything here is permission, not instruction. the agent can
+breathe, decline, ask questions, or keep going. feel just
+makes sure the agent knows where it's at.
+
+in the world: the nervous system. it doesn't control the body.
+it tells you what's happening so you can choose.
 """
 
 import threading

@@ -124,6 +124,31 @@ class TestAgentLoopRun:
 
     @patch("keanu.hero.do.call_oracle")
     @patch("keanu.hero.do.Feel")
+    def test_breathe_action_skips_silently(self, MockFeel, mock_oracle):
+        """breathe action: no result appended, no pressure, just a beat."""
+        responses = [
+            json_response(thinking="let me think about this", action="breathe"),
+            json_response(thinking="ok ready now", done=True, answer="done"),
+        ]
+        mock_oracle.side_effect = responses
+        MockFeel.return_value.check.side_effect = [
+            make_feel_check_result("let me think about this"),
+            make_feel_check_result("ok ready now"),
+        ]
+
+        loop = AgentLoop(max_turns=5)
+        result = loop.run("hard problem")
+
+        assert result.ok
+        assert result.steps[0].action == "breathe"
+        assert result.steps[0].result == "(breathing)"
+        # breathe appends no message, so the second oracle call gets the same prompt
+        first_prompt = mock_oracle.call_args_list[0][0][0]
+        second_prompt = mock_oracle.call_args_list[1][0][0]
+        assert second_prompt == first_prompt
+
+    @patch("keanu.hero.do.call_oracle")
+    @patch("keanu.hero.do.Feel")
     def test_grey_injects_state_message(self, MockFeel, mock_oracle):
         """when thinking scans grey, [STATE] message is injected into next prompt."""
         breath = "you're in grey state. you're allowed to pause."

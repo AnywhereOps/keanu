@@ -1,9 +1,9 @@
 """repl.py - interactive terminal for keanu.
 
 type a task, the agent loop runs, you see the result.
-/craft and /prove switch modes. /help for commands.
+/craft, /prove, /explore switch modes. /help for commands.
 
-in the world: the front door. type a task, get it done.
+in the world: the front door. type a task, or just explore.
 """
 
 from rich.console import Console
@@ -11,7 +11,7 @@ from rich.markdown import Markdown
 from rich.text import Text
 
 from keanu.abilities import list_abilities
-from keanu.hero.do import AgentLoop, Step, DO_CONFIG, CRAFT_CONFIG, PROVE_CONFIG
+from keanu.hero.do import AgentLoop, Step, DO_CONFIG, CRAFT_CONFIG, PROVE_CONFIG, EXPLORE_CONFIG
 from keanu.log import info
 
 console = Console()
@@ -32,18 +32,22 @@ BANNER = [
 HELP_TEXT = """
   [bold]/help[/bold]              show this
   [bold]/abilities[/bold]         list registered abilities
-  [bold]/mode[/bold] [dim][do|craft|prove][/dim]  switch agent mode
+  [bold]/mode[/bold] [dim][do|craft|prove|explore][/dim]  switch agent mode
+  [bold]/explore[/bold]           explore mode. no task, just curiosity.
   [bold]/model[/bold] [dim][name][/dim]     show or switch model
   [bold]/legend[/bold] [dim][name][/dim]    show or switch legend
   [bold]/quit[/bold]              exit
 """
 
-MODES = {"do": DO_CONFIG, "craft": CRAFT_CONFIG, "prove": PROVE_CONFIG}
+MODES = {"do": DO_CONFIG, "craft": CRAFT_CONFIG, "prove": PROVE_CONFIG, "explore": EXPLORE_CONFIG}
 
 
 def _print_step(step: Step):
     """print a single agent step with color."""
     if step.action == "done":
+        return
+    if step.action == "breathe":
+        console.print(f"  [dim italic]{step.input_summary[:120]}[/dim italic]")
         return
     if step.action == "think":
         console.print(f"  [dim]{step.input_summary[:120]}[/dim]")
@@ -124,6 +128,10 @@ class Repl:
                 console.print(f"  [red]unknown mode.[/red] use: {', '.join(MODES)}")
             else:
                 console.print(f"  mode: [green]{self.config.name}[/green]")
+        elif command == "/explore":
+            self.config = EXPLORE_CONFIG
+            console.print(f"  mode -> [green]explore[/green]")
+            self._run_task("look around")
         elif command in ("/craft", "/prove", "/do"):
             mode = command[1:]
             self.config = MODES[mode]
