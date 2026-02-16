@@ -54,68 +54,52 @@ def diagnose(text: str) -> AliveReading:
     color = _get_color(text)
 
     emo_states = {e["state"] for e in emotions}
-    evidence = []
 
-    r_net = color.get("red_net", 0)
-    y_net = color.get("yellow_net", 0)
-    b_net = color.get("blue_net", 0)
     cs = color.get("state", "flat")
     balance = color.get("balance", 0)
     fullness = color.get("fullness", 0)
-    wise_mind = color.get("wise_mind", 0)
 
-    if cs == "sunrise":
-        state = AliveState.GOLD
-        evidence.append("sunrise synthesis")
+    # priority-ordered rules: first match wins
+    rules = [
+        (cs == "sunrise",
+         AliveState.GOLD, "sunrise synthesis"),
+        (cs in ("black", "dark"),
+         AliveState.BLACK, cs),
+        (cs == "flat" and ("withdrawn" in emo_states or not emotions),
+         AliveState.GREY, "flat" + (" + withdrawn" if "withdrawn" in emo_states else "")),
+        (cs in ("white", "silver"),
+         AliveState.WHITE, cs),
+        (cs == "green" or ("energized" in emo_states and balance > 0.5),
+         AliveState.GREEN, cs if cs == "green" else "energized + balanced"),
+        (cs in ("red+", "red-", "orange") or "frustrated" in emo_states,
+         AliveState.RED, cs if cs.startswith("red") else "frustrated"),
+        (cs in ("blue+", "blue-") or ("questioning" in emo_states and not _hot(emotions)),
+         AliveState.BLUE, cs if cs.startswith("blue") else "questioning"),
+        (cs in ("yellow+", "yellow-") or "confused" in emo_states,
+         AliveState.YELLOW, cs if cs.startswith("yellow") else "confused"),
+        (cs == "purple",
+         AliveState.RED, "purple: passion + depth"),
+        (fullness > 2.0 and balance > 0.4 and not emo_states & {"frustrated", "withdrawn", "isolated", "confused"},
+         AliveState.GREEN, "positive, no negatives"),
+        (bool(emo_states & {"withdrawn", "isolated"}),
+         AliveState.GREY, "withdrawn/isolated, weak signal"),
+    ]
 
-    elif cs in ("black", "dark"):
-        state = AliveState.BLACK
-        evidence.append(cs)
-
-    elif cs == "flat" and ("withdrawn" in emo_states or not emotions):
-        state = AliveState.GREY
-        evidence.append("flat" + (" + withdrawn" if "withdrawn" in emo_states else ""))
-
-    elif cs in ("white", "silver"):
-        state = AliveState.WHITE
-        evidence.append(cs)
-
-    elif cs == "green" or ("energized" in emo_states and balance > 0.5):
-        state = AliveState.GREEN
-        evidence.append(cs if cs == "green" else "energized + balanced")
-
-    elif cs in ("red+", "red-", "orange") or "frustrated" in emo_states:
-        state = AliveState.RED
-        evidence.append(cs if cs.startswith("red") else "frustrated")
-
-    elif cs in ("blue+", "blue-") or ("questioning" in emo_states and not _hot(emotions)):
-        state = AliveState.BLUE
-        evidence.append(cs if cs.startswith("blue") else "questioning")
-
-    elif cs in ("yellow+", "yellow-") or "confused" in emo_states:
-        state = AliveState.YELLOW
-        evidence.append(cs if cs.startswith("yellow") else "confused")
-
-    elif cs == "purple":
-        state = AliveState.RED
-        evidence.append("purple: passion + depth")
-
-    elif fullness > 2.0 and balance > 0.4 and not emo_states & {"frustrated", "withdrawn", "isolated", "confused"}:
-        state = AliveState.GREEN
-        evidence.append("positive, no negatives")
-
-    elif emo_states & {"withdrawn", "isolated"}:
-        state = AliveState.GREY
-        evidence.append("withdrawn/isolated, weak signal")
-
-    else:
-        state = AliveState.YELLOW
-        evidence.append("uncertain")
+    state = AliveState.YELLOW
+    evidence = ["uncertain"]
+    for condition, alive_state, ev in rules:
+        if condition:
+            state = alive_state
+            evidence = [ev]
+            break
 
     return AliveReading(
         state=state, emotions=emotions, color_state=cs,
-        red_net=r_net, yellow_net=y_net, blue_net=b_net,
-        balance=balance, fullness=fullness, wise_mind=wise_mind,
+        red_net=color.get("red_net", 0),
+        yellow_net=color.get("yellow_net", 0),
+        blue_net=color.get("blue_net", 0),
+        balance=balance, fullness=fullness,
+        wise_mind=color.get("wise_mind", 0),
         evidence=evidence,
     )
 

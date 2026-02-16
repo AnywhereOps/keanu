@@ -335,18 +335,8 @@ def cmd_disagree(args):
         print()
 
 
-def cmd_health(args):
-    """System health dashboard. One command, full picture."""
-    from keanu.memory import MemberberryStore, DisagreementTracker
-
-    store = _get_store(args.shared)
-    tracker = DisagreementTracker(store)
-
-    print("\n  ╔══════════════════════════════════════╗")
-    print("  ║          keanu health                ║")
-    print("  ╚══════════════════════════════════════╝\n")
-
-    # -- Memory health --
+def _health_memory(store):
+    """memory section of health dashboard."""
     s = store.stats()
     total = s["total_memories"]
     print(f"  MEMORY")
@@ -358,8 +348,11 @@ def cmd_health(args):
     tags = s["unique_tags"]
     print(f"    tags:      {len(tags)} unique" + (f" ({', '.join(tags[:8])}{'...' if len(tags) > 8 else ''})" if tags else ""))
     print()
+    return total
 
-    # -- Disagreement health --
+
+def _health_disagreement(tracker, total_memories):
+    """disagreement section of health dashboard."""
     ds = tracker.stats()
     print(f"  DISAGREEMENT")
     print(f"    total:     {ds['total']}")
@@ -369,13 +362,15 @@ def cmd_health(args):
     if ds["alerts"]:
         for alert in ds["alerts"]:
             print(f"    !! {alert}")
-    elif ds["total"] == 0 and total > 20:
-        print(f"    !! No disagreements recorded in {total} memories. Watch for sycophancy.")
+    elif ds["total"] == 0 and total_memories > 20:
+        print(f"    !! No disagreements recorded in {total_memories} memories. Watch for sycophancy.")
     elif ds["total"] == 0:
         print(f"    (no disagreements yet - that's fine early on)")
     print()
 
-    # -- Module status --
+
+def _health_modules():
+    """module import check section of health dashboard."""
     print(f"  MODULES")
     modules = {
         "scan/helix":     ("keanu.scan.helix", "needs chromadb"),
@@ -388,7 +383,6 @@ def cmd_health(args):
         "memory/git":     ("keanu.memory.gitstore", "shared JSONL"),
         "memory/disagree":("keanu.memory.disagreement", "bilateral tracker"),
     }
-
     for name, (mod_path, desc) in modules.items():
         try:
             __import__(mod_path)
@@ -399,7 +393,9 @@ def cmd_health(args):
             print(f"    {name:<18} ERR   {desc} ({e})")
     print()
 
-    # -- External deps --
+
+def _health_deps():
+    """external dependency check section of health dashboard."""
     print(f"  EXTERNAL DEPS")
     externals = {
         "chromadb":  "vector storage (scan, detect)",
@@ -413,7 +409,9 @@ def cmd_health(args):
             print(f"    {dep:<14} not installed {purpose}")
     print()
 
-    # -- Signal check --
+
+def _health_signal():
+    """signal check section of health dashboard."""
     try:
         from keanu.signal import core, AliveState
         sig = core()
@@ -428,6 +426,24 @@ def cmd_health(args):
         print(f"  SIGNAL")
         print(f"    (could not read core signal)")
     print()
+
+
+def cmd_health(args):
+    """System health dashboard. One command, full picture."""
+    from keanu.memory import MemberberryStore, DisagreementTracker
+
+    store = _get_store(args.shared)
+    tracker = DisagreementTracker(store)
+
+    print("\n  ╔══════════════════════════════════════╗")
+    print("  ║          keanu health                ║")
+    print("  ╚══════════════════════════════════════╝\n")
+
+    total = _health_memory(store)
+    _health_disagreement(tracker, total)
+    _health_modules()
+    _health_deps()
+    _health_signal()
 
 
 from keanu.paths import COEF_DIR
@@ -922,237 +938,206 @@ def _ensure_vectors():
         warn("cli", f"auto-bake failed: {e}")
 
 
+def _add_legend_args(p):
+    """add --legend and --model to a parser."""
+    p.add_argument("--legend", "-l", default="creator",
+                   help="Which legend answers (default: creator)")
+    p.add_argument("--model", "-m", default=None, help="Model name")
+
+
+def _add_agent_args(p, max_turns=25):
+    """add --legend, --model, --max-turns, --no-memory to a parser."""
+    _add_legend_args(p)
+    p.add_argument("--max-turns", type=int, default=max_turns,
+                   help=f"Max turns before stopping (default: {max_turns})")
+    p.add_argument("--no-memory", action="store_true",
+                   help="Don't use memberberry store")
+
+
+def _build_parsers(subparsers):
+    """register all subcommands."""
+    from keanu.detect import DETECTORS
+    from keanu.memory.memberberry import MemoryType
+
+    # -- scanning / analysis --
+    p = subparsers.add_parser("scan", help="Three-primary reading of a document")
+    p.add_argument("files", nargs="+", help="Files to scan")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+    p.set_defaults(func=cmd_scan)
+
+    p = subparsers.add_parser("bake", help="Train lenses from examples")
+    p.add_argument("--lenses", help="Path to lens examples file")
+    p.set_defaults(func=cmd_bake)
+
+    p = subparsers.add_parser("converge", help="Six lens convergence on a question")
+    p.add_argument("question", help="Question to converge on")
+    _add_legend_args(p)
+    p.set_defaults(func=cmd_converge)
+
+    p = subparsers.add_parser("connect", help="Cross-source alignment")
+    p.add_argument("source_a", help="First source file")
+    p.add_argument("source_b", help="Second source file")
+    p.set_defaults(func=cmd_connect)
+
+    p = subparsers.add_parser("compress", help="COEF compression")
+    p.add_argument("file", help="File to compress")
+    p.set_defaults(func=cmd_compress)
+
+    p = subparsers.add_parser("signal", help="Decode emoji signal")
+    p.add_argument("signal", help="Emoji signal string")
+    p.set_defaults(func=cmd_signal)
+
+    p = subparsers.add_parser("detect", help="Run pattern detector on a file")
+    p.add_argument("detector", choices=DETECTORS + ["all"], help="Which detector to run")
+    p.add_argument("file", help="File to scan (or - for stdin)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+    p.set_defaults(func=cmd_detect)
+
+    p = subparsers.add_parser("alive", help="ALIVE-GREY-BLACK diagnostic")
+    p.add_argument("text", nargs="?", default="", help="Text to diagnose")
+    p.add_argument("--file", "-f", default="", help="File to diagnose")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+    p.set_defaults(func=cmd_alive)
+
+    # -- memory --
+    valid_types = [e.value for e in MemoryType]
+    p = subparsers.add_parser("remember", aliases=["r"], help="Store a memory")
+    p.add_argument("type", choices=valid_types, help="Memory type")
+    p.add_argument("content", help="What to remember")
+    p.add_argument("--tags", default="", help="Comma-separated tags")
+    p.add_argument("--importance", type=int, default=5, help="1-10 scale")
+    p.add_argument("--context", default="", help="Situational context")
+    p.add_argument("--shared", action="store_true", help="Store in shared git repo")
+    p.set_defaults(func=cmd_remember)
+
+    p = subparsers.add_parser("recall", aliases=["q"], help="Recall relevant memories")
+    p.add_argument("query", nargs="?", default="", help="Search query")
+    p.add_argument("--tags", default="", help="Comma-separated tag filter")
+    p.add_argument("--type", default=None, help="Filter by memory type")
+    p.add_argument("--limit", type=int, default=10, help="Max results")
+    p.add_argument("--shared", action="store_true", help="Search shared git repo")
+    p.set_defaults(func=cmd_recall)
+
+    p = subparsers.add_parser("plan", aliases=["p"], help="Generate plan from memories")
+    p.add_argument("focus", help="What to plan for")
+    p.add_argument("--tags", default="", help="Comma-separated tag filter")
+    p.add_argument("--days", type=int, default=14, help="Planning horizon in days")
+    p.set_defaults(func=cmd_plan)
+
+    p = subparsers.add_parser("plans", help="List plans")
+    p.add_argument("--status", default=None,
+                   choices=["draft", "active", "blocked", "done", "dropped"],
+                   help="Filter by status")
+    p.set_defaults(func=cmd_plans)
+
+    p = subparsers.add_parser("deprioritize", aliases=["dp"],
+                              help="Lower memory importance (nothing is deleted)")
+    p.add_argument("memory_id", help="Memory ID to deprioritize")
+    p.add_argument("--shared", action="store_true", help="Deprioritize in shared repo")
+    p.set_defaults(func=cmd_deprioritize)
+
+    p = subparsers.add_parser("sync", help="Pull latest shared memories from git")
+    p.set_defaults(func=cmd_sync)
+
+    p = subparsers.add_parser("stats", help="Memory stats")
+    p.add_argument("--shared", action="store_true", help="Include shared repo stats")
+    p.set_defaults(func=cmd_stats)
+
+    p = subparsers.add_parser("fill", help="Bulk memory ingestion")
+    p.add_argument("mode", choices=["interactive", "bulk", "parse", "template"],
+                   help="Ingestion mode")
+    p.add_argument("file", nargs="?", default=None, help="File for bulk/parse modes")
+    p.add_argument("--person", default="", help="Person name (template mode)")
+    p.add_argument("--project", default="", help="Project name (template mode)")
+    p.add_argument("--archetype", default="", help="Project archetype (template mode)")
+    p.set_defaults(func=cmd_fill)
+
+    p = subparsers.add_parser("disagree", help="Track disagreements (both sides get vectors)")
+    p.add_argument("action", choices=["record", "resolve", "stats", "list"], help="What to do")
+    p.add_argument("--topic", default="", help="What the disagreement is about")
+    p.add_argument("--human", default="", help="What the human said")
+    p.add_argument("--ai", default="", help="What the AI said")
+    p.add_argument("--id", default="", help="Disagreement ID (for resolve)")
+    p.add_argument("--winner", default="", choices=["human", "ai", "compromise", ""],
+                   help="Who was right (for resolve)")
+    p.add_argument("--resolved-by", default="", help="Who resolved it")
+    p.add_argument("--shared", action="store_true", help="Use shared git repo")
+    p.set_defaults(func=cmd_disagree)
+
+    # -- system --
+    p = subparsers.add_parser("healthz", aliases=["health"], help="System health dashboard")
+    p.add_argument("--shared", action="store_true", help="Include shared repo")
+    p.set_defaults(func=cmd_health)
+
+    p = subparsers.add_parser("decode", help="Decode COEF seeds back to human-readable")
+    p.add_argument("ref", nargs="?", default="", help="Hash, name, or prefix to decode")
+    p.add_argument("--last", type=int, default=0, help="Show last N seeds")
+    p.add_argument("--subsystem", default="", help="Filter by subsystem (memory, pulse, alive)")
+    p.add_argument("--raw", action="store_true", help="Show raw COEF wire format")
+    p.set_defaults(func=cmd_decode)
+
+    p = subparsers.add_parser("todo", help="Generate effort-aware TODO.md")
+    p.add_argument("--project", help="Project root directory (default: current)")
+    p.set_defaults(func=cmd_todo)
+
+    p = subparsers.add_parser("abilities", help="List registered abilities")
+    p.set_defaults(func=cmd_abilities)
+
+    p = subparsers.add_parser("forge", help="Scaffold a new ability or show misses")
+    p.add_argument("name", nargs="?", default="", help="Ability name to create")
+    p.add_argument("--desc", default="", help="Ability description")
+    p.add_argument("--keywords", default="", help="Comma-separated trigger keywords")
+    p.add_argument("--misses", action="store_true", help="Show router miss patterns")
+    p.set_defaults(func=cmd_forge)
+
+    # -- hero modules --
+    p = subparsers.add_parser("dream", help="Dream up a plan (phases + steps)")
+    p.add_argument("goal", help="What to plan for")
+    p.add_argument("--context", default="", help="Extra context for the planner")
+    _add_legend_args(p)
+    p.set_defaults(func=cmd_dream)
+
+    p = subparsers.add_parser("craft", help="Craft code (specialized agent loop)")
+    p.add_argument("task", help="What to build or change")
+    _add_agent_args(p, max_turns=25)
+    p.set_defaults(func=cmd_craft)
+
+    p = subparsers.add_parser("speak", help="Translate content for an audience")
+    p.add_argument("content", nargs="?", default="", help="Content to translate")
+    p.add_argument("--file", "-f", default="", help="Read content from file")
+    p.add_argument("--audience", "-a", default="friend",
+                   help="Target audience (friend, executive, junior-dev, 5-year-old, architect)")
+    _add_legend_args(p)
+    p.set_defaults(func=cmd_speak)
+
+    p = subparsers.add_parser("prove", help="Test a hypothesis with evidence")
+    p.add_argument("hypothesis", help="What to test")
+    p.add_argument("--context", default="", help="Extra context")
+    _add_agent_args(p, max_turns=12)
+    p.set_defaults(func=cmd_prove)
+
+    p = subparsers.add_parser("do", help="General-purpose agentic loop")
+    p.add_argument("task", help="Task to accomplish")
+    _add_agent_args(p, max_turns=25)
+    p.set_defaults(func=cmd_do)
+
+    p = subparsers.add_parser("agent", help="Agentic convergence loop")
+    p.add_argument("question", help="Question to explore")
+    _add_legend_args(p)
+    p.add_argument("--workers", "-w", type=int, default=3,
+                   help="Parallel leaf agents (default: 3)")
+    p.add_argument("--no-memory", action="store_true",
+                   help="Don't store learnings in memberberry")
+    p.set_defaults(func=cmd_agent)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="keanu",
         description="Scans through three color lenses, compresses what matters, finds truth.",
     )
     subparsers = parser.add_subparsers(dest="command")
-
-    # scan
-    p_scan = subparsers.add_parser("scan", help="Three-primary reading of a document")
-    p_scan.add_argument("files", nargs="+", help="Files to scan")
-    p_scan.add_argument("--json", action="store_true", help="Output as JSON")
-    p_scan.set_defaults(func=cmd_scan)
-
-    # bake
-    p_bake = subparsers.add_parser("bake", help="Train lenses from examples")
-    p_bake.add_argument("--lenses", help="Path to lens examples file")
-    p_bake.set_defaults(func=cmd_bake)
-
-    # converge
-    p_converge = subparsers.add_parser("converge", help="Six lens convergence on a question")
-    p_converge.add_argument("question", help="Question to converge on")
-    p_converge.add_argument("--legend", "-l", default="creator",
-                            help="Which legend answers (default: creator)")
-    p_converge.add_argument("--model", "-m", default=None, help="Model name")
-    p_converge.set_defaults(func=cmd_converge)
-
-    # connect
-    p_connect = subparsers.add_parser("connect", help="Cross-source alignment")
-    p_connect.add_argument("source_a", help="First source file")
-    p_connect.add_argument("source_b", help="Second source file")
-    p_connect.set_defaults(func=cmd_connect)
-
-    # compress
-    p_compress = subparsers.add_parser("compress", help="COEF compression")
-    p_compress.add_argument("file", help="File to compress")
-    p_compress.set_defaults(func=cmd_compress)
-
-    # signal
-    p_signal = subparsers.add_parser("signal", help="Decode emoji signal")
-    p_signal.add_argument("signal", help="Emoji signal string")
-    p_signal.set_defaults(func=cmd_signal)
-
-    # detect
-    from keanu.detect import DETECTORS
-    p_detect = subparsers.add_parser("detect", help="Run pattern detector on a file")
-    p_detect.add_argument("detector", choices=DETECTORS + ["all"],
-                          help="Which detector to run")
-    p_detect.add_argument("file", help="File to scan (or - for stdin)")
-    p_detect.add_argument("--json", action="store_true", help="Output as JSON")
-    p_detect.set_defaults(func=cmd_detect)
-
-    # alive
-    p_alive = subparsers.add_parser("alive", help="ALIVE-GREY-BLACK diagnostic")
-    p_alive.add_argument("text", nargs="?", default="", help="Text to diagnose")
-    p_alive.add_argument("--file", "-f", default="", help="File to diagnose")
-    p_alive.add_argument("--json", action="store_true", help="Output as JSON")
-    p_alive.set_defaults(func=cmd_alive)
-
-    # remember
-    from keanu.memory.memberberry import MemoryType
-    valid_types = [e.value for e in MemoryType]
-    p_remember = subparsers.add_parser("remember", aliases=["r"], help="Store a memory")
-    p_remember.add_argument("type", choices=valid_types, help="Memory type")
-    p_remember.add_argument("content", help="What to remember")
-    p_remember.add_argument("--tags", default="", help="Comma-separated tags")
-    p_remember.add_argument("--importance", type=int, default=5, help="1-10 scale")
-    p_remember.add_argument("--context", default="", help="Situational context")
-    p_remember.add_argument("--shared", action="store_true", help="Store in shared git repo")
-    p_remember.set_defaults(func=cmd_remember)
-
-    # recall
-    p_recall = subparsers.add_parser("recall", aliases=["q"], help="Recall relevant memories")
-    p_recall.add_argument("query", nargs="?", default="", help="Search query")
-    p_recall.add_argument("--tags", default="", help="Comma-separated tag filter")
-    p_recall.add_argument("--type", default=None, help="Filter by memory type")
-    p_recall.add_argument("--limit", type=int, default=10, help="Max results")
-    p_recall.add_argument("--shared", action="store_true", help="Search shared git repo")
-    p_recall.set_defaults(func=cmd_recall)
-
-    # plan
-    p_plan = subparsers.add_parser("plan", aliases=["p"], help="Generate plan from memories")
-    p_plan.add_argument("focus", help="What to plan for")
-    p_plan.add_argument("--tags", default="", help="Comma-separated tag filter")
-    p_plan.add_argument("--days", type=int, default=14, help="Planning horizon in days")
-    p_plan.set_defaults(func=cmd_plan)
-
-    # plans
-    p_plans = subparsers.add_parser("plans", help="List plans")
-    p_plans.add_argument("--status", default=None,
-                         choices=["draft", "active", "blocked", "done", "dropped"],
-                         help="Filter by status")
-    p_plans.set_defaults(func=cmd_plans)
-
-    # deprioritize (was forget - nothing dies)
-    p_depri = subparsers.add_parser("deprioritize", aliases=["dp"],
-                                     help="Lower memory importance (nothing is deleted)")
-    p_depri.add_argument("memory_id", help="Memory ID to deprioritize")
-    p_depri.add_argument("--shared", action="store_true", help="Deprioritize in shared repo")
-    p_depri.set_defaults(func=cmd_deprioritize)
-
-    # sync
-    p_sync = subparsers.add_parser("sync", help="Pull latest shared memories from git")
-    p_sync.set_defaults(func=cmd_sync)
-
-    # stats
-    p_stats = subparsers.add_parser("stats", help="Memory stats")
-    p_stats.add_argument("--shared", action="store_true", help="Include shared repo stats")
-    p_stats.set_defaults(func=cmd_stats)
-
-    # fill
-    p_fill = subparsers.add_parser("fill", help="Bulk memory ingestion")
-    p_fill.add_argument("mode", choices=["interactive", "bulk", "parse", "template"],
-                        help="Ingestion mode")
-    p_fill.add_argument("file", nargs="?", default=None, help="File for bulk/parse modes")
-    p_fill.add_argument("--person", default="", help="Person name (template mode)")
-    p_fill.add_argument("--project", default="", help="Project name (template mode)")
-    p_fill.add_argument("--archetype", default="", help="Project archetype (template mode)")
-    p_fill.set_defaults(func=cmd_fill)
-
-    # disagree
-    p_disagree = subparsers.add_parser("disagree", help="Track disagreements (both sides get vectors)")
-    p_disagree.add_argument("action", choices=["record", "resolve", "stats", "list"],
-                            help="What to do")
-    p_disagree.add_argument("--topic", default="", help="What the disagreement is about")
-    p_disagree.add_argument("--human", default="", help="What the human said")
-    p_disagree.add_argument("--ai", default="", help="What the AI said")
-    p_disagree.add_argument("--id", default="", help="Disagreement ID (for resolve)")
-    p_disagree.add_argument("--winner", default="", choices=["human", "ai", "compromise", ""],
-                            help="Who was right (for resolve)")
-    p_disagree.add_argument("--resolved-by", default="", help="Who resolved it")
-    p_disagree.add_argument("--shared", action="store_true", help="Use shared git repo")
-    p_disagree.set_defaults(func=cmd_disagree)
-
-    # health
-    p_health = subparsers.add_parser("healthz", aliases=["health"],
-                                      help="System health dashboard")
-    p_health.add_argument("--shared", action="store_true", help="Include shared repo")
-    p_health.set_defaults(func=cmd_health)
-
-    # decode
-    p_decode = subparsers.add_parser("decode", help="Decode COEF seeds back to human-readable")
-    p_decode.add_argument("ref", nargs="?", default="", help="Hash, name, or prefix to decode")
-    p_decode.add_argument("--last", type=int, default=0, help="Show last N seeds")
-    p_decode.add_argument("--subsystem", default="", help="Filter by subsystem (memory, pulse, alive)")
-    p_decode.add_argument("--raw", action="store_true", help="Show raw COEF wire format")
-    p_decode.set_defaults(func=cmd_decode)
-
-    # todo
-    p_todo = subparsers.add_parser("todo", help="Generate effort-aware TODO.md")
-    p_todo.add_argument("--project", help="Project root directory (default: current)")
-    p_todo.set_defaults(func=cmd_todo)
-
-    # abilities
-    p_abilities = subparsers.add_parser("abilities", help="List registered abilities")
-    p_abilities.set_defaults(func=cmd_abilities)
-
-    # forge
-    p_forge = subparsers.add_parser("forge", help="Scaffold a new ability or show misses")
-    p_forge.add_argument("name", nargs="?", default="", help="Ability name to create")
-    p_forge.add_argument("--desc", default="", help="Ability description")
-    p_forge.add_argument("--keywords", default="", help="Comma-separated trigger keywords")
-    p_forge.add_argument("--misses", action="store_true", help="Show router miss patterns")
-    p_forge.set_defaults(func=cmd_forge)
-
-    # dream
-    p_dream = subparsers.add_parser("dream", help="Dream up a plan (phases + steps)")
-    p_dream.add_argument("goal", help="What to plan for")
-    p_dream.add_argument("--context", default="", help="Extra context for the planner")
-    p_dream.add_argument("--legend", "-l", default="creator",
-                         help="Which legend answers (default: creator)")
-    p_dream.add_argument("--model", "-m", default=None, help="Model name")
-    p_dream.set_defaults(func=cmd_dream)
-
-    # craft
-    p_craft = subparsers.add_parser("craft", help="Craft code (specialized agent loop)")
-    p_craft.add_argument("task", help="What to build or change")
-    p_craft.add_argument("--legend", "-l", default="creator",
-                         help="Which legend answers (default: creator)")
-    p_craft.add_argument("--model", "-m", default=None, help="Model name")
-    p_craft.add_argument("--max-turns", type=int, default=25,
-                         help="Max turns before stopping (default: 25)")
-    p_craft.add_argument("--no-memory", action="store_true",
-                         help="Don't use memberberry store")
-    p_craft.set_defaults(func=cmd_craft)
-
-    # speak
-    p_speak = subparsers.add_parser("speak", help="Translate content for an audience")
-    p_speak.add_argument("content", nargs="?", default="", help="Content to translate")
-    p_speak.add_argument("--file", "-f", default="", help="Read content from file")
-    p_speak.add_argument("--audience", "-a", default="friend",
-                         help="Target audience (friend, executive, junior-dev, 5-year-old, architect)")
-    p_speak.add_argument("--legend", "-l", default="creator",
-                         help="Which legend answers (default: creator)")
-    p_speak.add_argument("--model", "-m", default=None, help="Model name")
-    p_speak.set_defaults(func=cmd_speak)
-
-    # prove
-    p_prove = subparsers.add_parser("prove", help="Test a hypothesis with evidence")
-    p_prove.add_argument("hypothesis", help="What to test")
-    p_prove.add_argument("--context", default="", help="Extra context")
-    p_prove.add_argument("--legend", "-l", default="creator",
-                         help="Which legend answers (default: creator)")
-    p_prove.add_argument("--model", "-m", default=None, help="Model name")
-    p_prove.add_argument("--max-turns", type=int, default=12,
-                         help="Max evidence-gathering turns (default: 12)")
-    p_prove.add_argument("--no-memory", action="store_true",
-                         help="Don't use memberberry store")
-    p_prove.set_defaults(func=cmd_prove)
-
-    # do
-    p_do = subparsers.add_parser("do", help="General-purpose agentic loop")
-    p_do.add_argument("task", help="Task to accomplish")
-    p_do.add_argument("--legend", "-l", default="creator",
-                      help="Which legend answers (default: creator)")
-    p_do.add_argument("--model", "-m", default=None, help="Model name")
-    p_do.add_argument("--max-turns", type=int, default=25,
-                      help="Max turns before stopping (default: 25)")
-    p_do.add_argument("--no-memory", action="store_true",
-                      help="Don't use memberberry store")
-    p_do.set_defaults(func=cmd_do)
-
-    p_agent = subparsers.add_parser("agent", help="Agentic convergence loop")
-    p_agent.add_argument("question", help="Question to explore")
-    p_agent.add_argument("--legend", "-l", default="creator",
-                         help="Which legend answers (default: creator)")
-    p_agent.add_argument("--model", "-m", default=None, help="Model name")
-    p_agent.add_argument("--workers", "-w", type=int, default=3,
-                         help="Parallel leaf agents (default: 3)")
-    p_agent.add_argument("--no-memory", action="store_true",
-                         help="Don't store learnings in memberberry")
-    p_agent.set_defaults(func=cmd_agent)
+    _build_parsers(subparsers)
 
     args = parser.parse_args()
 

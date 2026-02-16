@@ -82,54 +82,58 @@ class Memory:
             raw = f"{self.content}{self.created_at}"
             self.id = hashlib.sha256(raw.encode()).hexdigest()[:12]
 
+    # scoring weights
+    TAG_OVERLAP_WEIGHT = 0.3
+    WORD_OVERLAP_WEIGHT = 0.2
+    WORD_OVERLAP_CAP = 1.0
+    RECENCY_BOOST_7D = 0.3
+    RECENCY_BOOST_30D = 0.15
+    DECAY_AGE_DAYS = 90
+    DECAY_MIN_RECALLS = 3
+    DECAY_FACTOR = 0.5
+    TYPE_WEIGHTS = {
+        "goal": 0.3, "commitment": 0.25, "decision": 0.2,
+        "insight": 0.15, "lesson": 0.15, "preference": 0.1, "fact": 0.05,
+    }
+
     def relevance_score(self, query_tags: list = None, query_text: str = "") -> float:
         """Calculate how relevant this memory is right now."""
-        score = 0.0
-
-        # Base importance (normalized to 0-1)
-        score += self.importance / 10.0
-
-        # Tag overlap
-        if query_tags:
-            overlap = len(set(self.tags) & set(query_tags))
-            score += overlap * 0.3
-
-        # Text match (simple keyword overlap, no ML needed for MVP)
-        if query_text:
-            query_words = set(query_text.lower().split())
-            content_words = set(self.content.lower().split())
-            context_words = set(self.context.lower().split())
-            all_memory_words = content_words | context_words
-            word_overlap = len(query_words & all_memory_words)
-            if word_overlap > 0:
-                score += min(word_overlap * 0.2, 1.0)
-
-        # Recency boost (memories accessed recently are hotter)
-        if self.last_recalled:
-            days_since = (datetime.now() - datetime.fromisoformat(self.last_recalled)).days
-            if days_since < 7:
-                score += 0.3
-            elif days_since < 30:
-                score += 0.15
-
-        # Decay penalty (old untouched memories fade)
-        days_old = (datetime.now() - datetime.fromisoformat(self.created_at)).days
-        if days_old > 90 and self.recall_count < 3:
-            score *= 0.5
-
-        # Type bonuses (commitments and decisions matter more for planning)
-        type_weights = {
-            "goal": 0.3,
-            "commitment": 0.25,
-            "decision": 0.2,
-            "insight": 0.15,
-            "lesson": 0.15,
-            "preference": 0.1,
-            "fact": 0.05,
-        }
-        score += type_weights.get(self.memory_type, 0)
-
+        score = self.importance / 10.0
+        score += self._tag_score(query_tags)
+        score += self._text_score(query_text)
+        score += self._recency_score()
+        score = self._apply_decay(score)
+        score += self.TYPE_WEIGHTS.get(self.memory_type, 0)
         return round(score, 3)
+
+    def _tag_score(self, query_tags):
+        if not query_tags:
+            return 0.0
+        return len(set(self.tags) & set(query_tags)) * self.TAG_OVERLAP_WEIGHT
+
+    def _text_score(self, query_text):
+        if not query_text:
+            return 0.0
+        query_words = set(query_text.lower().split())
+        memory_words = set(self.content.lower().split()) | set(self.context.lower().split())
+        overlap = len(query_words & memory_words)
+        return min(overlap * self.WORD_OVERLAP_WEIGHT, self.WORD_OVERLAP_CAP) if overlap else 0.0
+
+    def _recency_score(self):
+        if not self.last_recalled:
+            return 0.0
+        days = (datetime.now() - datetime.fromisoformat(self.last_recalled)).days
+        if days < 7:
+            return self.RECENCY_BOOST_7D
+        if days < 30:
+            return self.RECENCY_BOOST_30D
+        return 0.0
+
+    def _apply_decay(self, score):
+        days_old = (datetime.now() - datetime.fromisoformat(self.created_at)).days
+        if days_old > self.DECAY_AGE_DAYS and self.recall_count < self.DECAY_MIN_RECALLS:
+            return score * self.DECAY_FACTOR
+        return score
 
 
 @dataclass
