@@ -1,4 +1,4 @@
-"""Tests for cli.py - verify all commands parse without crashing."""
+"""Tests for cli.py - verify commands parse without crashing."""
 
 import subprocess
 import sys
@@ -22,24 +22,48 @@ class TestCLIHelp:
         r = _run_keanu("scan", "--help")
         assert r.returncode == 0
 
-    def test_remember_help(self):
+    def test_do_help(self):
+        r = _run_keanu("do", "--help")
+        assert r.returncode == 0
+        assert "--craft" in r.stdout
+        assert "--prove" in r.stdout
+
+    def test_ask_help(self):
+        r = _run_keanu("ask", "--help")
+        assert r.returncode == 0
+
+    def test_memory_help(self):
+        r = _run_keanu("memory", "--help")
+        assert r.returncode == 0
+        assert "remember" in r.stdout
+        assert "recall" in r.stdout
+
+    def test_memory_remember_help(self):
+        r = _run_keanu("memory", "remember", "--help")
+        assert r.returncode == 0
+
+    def test_memory_recall_help(self):
+        r = _run_keanu("memory", "recall", "--help")
+        assert r.returncode == 0
+
+    def test_memory_plan_help(self):
+        r = _run_keanu("memory", "plan", "--help")
+        assert r.returncode == 0
+
+    def test_remember_shortcut(self):
         r = _run_keanu("remember", "--help")
         assert r.returncode == 0
 
-    def test_recall_help(self):
+    def test_recall_shortcut(self):
         r = _run_keanu("recall", "--help")
-        assert r.returncode == 0
-
-    def test_plan_help(self):
-        r = _run_keanu("plan", "--help")
         assert r.returncode == 0
 
     def test_detect_help(self):
         r = _run_keanu("detect", "--help")
         assert r.returncode == 0
 
-    def test_stats(self):
-        r = _run_keanu("stats")
+    def test_memory_stats(self):
+        r = _run_keanu("memory", "stats")
         assert r.returncode == 0
         assert "memberberry" in r.stdout
 
@@ -58,6 +82,5 @@ class TestCLIHelp:
 
     def test_no_args_launches_repl(self):
         r = _run_keanu()
-        # bare keanu now launches REPL (exits 0 when stdin closes)
         assert r.returncode == 0
         assert "type a task" in r.stdout
