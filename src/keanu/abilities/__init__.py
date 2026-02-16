@@ -13,7 +13,6 @@ the action bar:
     scry        see hidden patterns without touching the source.
     attune      three-key attunement (R/Y/B). you go in different.
     purge       check for debuffs. grey and black are debuffs.
-    decipher    decode the signal. rogue energy.
     soulstone   capture the essence, store it. pure warlock.
     inspect     inspect target. gear, stats, everything.
     recount     count what you have. day of reckoning.
@@ -198,6 +197,6 @@ class TodoAbility(Ability):
 
 
 # register external abilities (decorator runs at import time)
-import keanu.abilities.seeing      # noqa: F401  (scry, attune, purge, decipher, inspect, recount)
+import keanu.abilities.seeing      # noqa: F401  (scry, attune, purge, inspect, recount)
 import keanu.abilities.hands       # noqa: F401  (read, write, edit, search, ls, run)
 import keanu.abilities.world       # noqa: F401  (fuse, recall, soulstone)

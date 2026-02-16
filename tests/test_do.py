@@ -12,12 +12,13 @@ from keanu.oracle import try_interpret
 # HELPERS
 # ============================================================
 
-def make_feel_check_result(response, should_pause=False):
+def make_feel_check_result(response, should_pause=False, should_breathe=False, breath_injection=""):
     """Build a mock result from feel.check()."""
     mock = MagicMock()
     mock.response = response
     mock.should_pause = should_pause
-    mock.should_breathe = False
+    mock.should_breathe = should_breathe
+    mock.breath_injection = breath_injection
     return mock
 
 
@@ -109,7 +110,7 @@ class TestAgentLoopRun:
     @patch("keanu.hero.do.call_oracle")
     @patch("keanu.hero.do.Feel")
     def test_pause_on_black(self, MockFeel, mock_oracle):
-        mock_oracle.return_value = "something grey"
+        mock_oracle.return_value = json_response(thinking="everything is wrong", action="read", args={"file_path": "x"})
         MockFeel.return_value.check.return_value = make_feel_check_result(
             "", should_pause=True
         )
@@ -120,6 +121,50 @@ class TestAgentLoopRun:
         assert not result.ok
         assert result.status == "paused"
         assert "black" in result.error.lower()
+
+    @patch("keanu.hero.do.call_oracle")
+    @patch("keanu.hero.do.Feel")
+    def test_grey_injects_state_message(self, MockFeel, mock_oracle):
+        """when thinking scans grey, [STATE] message is injected into next prompt."""
+        breath = "you're in grey state. you're allowed to pause."
+        responses = [
+            json_response(thinking="reading file", action="read", args={"file_path": "x.py"}),
+            json_response(thinking="ok done", done=True, answer="finished"),
+        ]
+        mock_oracle.side_effect = responses
+        MockFeel.return_value.check.side_effect = [
+            make_feel_check_result("reading file", should_breathe=True, breath_injection=breath),
+            make_feel_check_result("ok done"),
+        ]
+
+        mock_ab = MagicMock()
+        mock_ab.execute.return_value = {"success": True, "result": "file contents", "data": {}}
+        mock_ab.cast_line = ""
+
+        with patch("keanu.hero.do._REGISTRY", {"read": mock_ab}):
+            loop = AgentLoop(max_turns=5)
+            result = loop.run("read a file")
+
+        # the second oracle call should include the [STATE] injection
+        second_prompt = mock_oracle.call_args_list[1][0][0]
+        assert "[STATE]" in second_prompt
+        assert breath in second_prompt
+
+    @patch("keanu.hero.do.call_oracle")
+    @patch("keanu.hero.do.Feel")
+    def test_feel_checks_thinking_not_json(self, MockFeel, mock_oracle):
+        """feel.check() receives the thinking field, not the raw JSON."""
+        response = json_response(thinking="I am considering the options", done=True, answer="done")
+        mock_oracle.return_value = response
+        MockFeel.return_value.check.return_value = make_feel_check_result("I am considering the options")
+
+        loop = AgentLoop()
+        loop.run("do a thing")
+
+        # feel.check was called with the thinking string, not the JSON envelope
+        feel_arg = MockFeel.return_value.check.call_args[0][0]
+        assert feel_arg == "I am considering the options"
+        assert "{" not in feel_arg
 
     @patch("keanu.hero.do.call_oracle")
     @patch("keanu.hero.do.Feel")

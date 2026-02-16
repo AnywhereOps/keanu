@@ -1,8 +1,7 @@
 """Tests for alive.py - ALIVE-GREY-BLACK diagnostic."""
 
 from unittest.mock import patch
-from keanu.alive import diagnose, AliveReading, _hot
-from keanu.signal.vibe import AliveState
+from keanu.alive import diagnose, AliveReading, AliveState, _hot
 
 
 class TestAliveReading:

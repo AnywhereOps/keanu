@@ -22,7 +22,7 @@ class TestRegistry:
         names = set(_REGISTRY.keys())
         action_bar = {
             "scout", "recall", "scry", "attune", "purge",
-            "decipher", "soulstone", "inspect", "recount",
+            "soulstone", "inspect", "recount",
         }
         hands = {"read", "write", "edit", "search", "ls", "run"}
         expected = action_bar | hands
@@ -78,12 +78,6 @@ class TestFindAbility:
         ab, conf = find_ability("is this text alive or grey")
         assert ab is not None
         assert ab.name == "purge"
-        assert conf >= 0.8
-
-    def test_decipher_matches_emoji(self):
-        ab, conf = find_ability("❤️🐕🔥🤖🙏💚🧕")
-        assert ab is not None
-        assert ab.name == "decipher"
         assert conf >= 0.8
 
     def test_soulstone_matches_compress(self):
@@ -275,46 +269,6 @@ class TestPurge:
 # ============================================================
 # DECIPHER (signal)
 # ============================================================
-
-class TestDecipher:
-
-    def test_can_handle_emoji(self):
-        ab = _REGISTRY["decipher"]
-        can, conf = ab.can_handle("❤️🐕🔥🤖🙏💚🧕")
-        assert can is True
-        assert conf >= 0.8
-
-    def test_can_handle_decode_phrase(self):
-        ab = _REGISTRY["decipher"]
-        can, conf = ab.can_handle("decode signal")
-        assert can is True
-        assert conf >= 0.9
-
-    def test_cannot_handle(self):
-        ab = _REGISTRY["decipher"]
-        can, conf = ab.can_handle("write a function")
-        assert can is False
-
-    def test_execute_emoji_sequence(self):
-        ab = _REGISTRY["decipher"]
-        result = ab.execute("❤️🐕🔥")
-        assert result["success"] is True
-        assert result["data"]["symbols"] == 3
-        assert result["data"]["source"] == "sequence"
-
-    def test_execute_text(self):
-        ab = _REGISTRY["decipher"]
-        result = ab.execute("I love building things with loyalty and fire")
-        assert result["success"] is True
-        assert result["data"]["symbols"] > 0
-        assert result["data"]["source"] == "text"
-
-    def test_execute_no_signal(self):
-        ab = _REGISTRY["decipher"]
-        result = ab.execute("xyz")
-        assert result["success"] is True
-        assert "No signal" in result["result"]
-
 
 # ============================================================
 # SOULSTONE (compress)

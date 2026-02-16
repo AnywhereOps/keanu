@@ -89,6 +89,7 @@ Rules:
 - One action per turn. You'll see the result before choosing the next.
 - Read before you edit. Always.
 - If something fails, try a different approach.
+- If the task is vague or you don't understand it, set done=true and ask for clarification in your answer. Don't loop.
 - If you're stuck, say so in the answer and set done=true.
 - Be direct. No filler."""
 
@@ -265,11 +266,8 @@ class AgentLoop:
                 warn(self.config.name, f"oracle unreachable: {e}")
                 return self._result(task, "paused", error=str(e))
 
-            feel_result = self.feel.check(response)
-            if feel_result.should_pause:
-                warn(self.config.name, f"paused at turn {turn}")
-                return self._result(task, "paused", error="black state detected")
-
+            # parse first, then pulse-check the thinking (natural language),
+            # not the raw JSON (which always scans flat/grey)
             parsed = try_interpret(response)
             if parsed is None:
                 self.steps.append(Step(
@@ -284,6 +282,16 @@ class AgentLoop:
             action = parsed.get("action", "none")
             args = parsed.get("args", {})
             done = parsed.get("done", False)
+
+            # pulse the thinking field, not the JSON envelope
+            feel_result = self.feel.check(thinking) if thinking else FeelResult(response=response)
+            if feel_result.should_pause:
+                warn(self.config.name, f"paused at turn {turn}")
+                return self._result(task, "paused", error="black state detected")
+
+            # grey: let the agent know its state. awareness, not instruction.
+            if feel_result.should_breathe:
+                messages.append(f"[STATE] {feel_result.breath_injection}")
 
             info(self.config.name, f"turn {turn}: {action} {'(done)' if done else ''}")
             if thinking:

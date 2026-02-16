@@ -34,6 +34,8 @@ src/keanu/
     alive.py               ALIVE-GREY-BLACK diagnostic. text in, state out.
     cli.py                 every keanu command starts here.
     log.py                 structured logging + COEF span export.
+    paths.py               shared path constants (KEANU_DIR, COEF_DIR, etc).
+    io.py                  shared I/O helpers.
     pulse.py               nervous system middleware. Pulse class with
                            history, nudges, escalation, memberberry integration.
 
@@ -44,33 +46,41 @@ src/keanu/
         architect.py       Drew. knows the internals, gets the full picture.
 
     hero/                  the agentic layer. the nervous system.
+        do.py              unified agent loop. LoopConfig + AgentLoop.
+                           DO_CONFIG (general), CRAFT_CONFIG (code),
+                           PROVE_CONFIG (evidence). one loop, three configs.
         feel.py            runs on every LLM call. checks aliveness.
         breathe.py         task decomposition. breaks questions into pairs.
         loop.py            convergence loop. duality synthesis agent.
-        do.py              general-purpose ReAct loop. picks abilities by name.
         dream.py           the planner. breaks goals into phased steps.
         speak.py           the translator. rewrites content for audiences.
-        craft.py           the coder. specialized do.py for code (hands only).
-        prove.py           the scientist. tests hypotheses with evidence.
-        repl.py            interactive terminal. type a task, get it done.
+        craft.py           re-export shim. imports from do.py.
+        prove.py           re-export shim. imports from do.py.
+        repl.py            interactive terminal. /do, /craft, /prove modes.
         ide.py             MCP client for the VSCode extension.
+        types.py           shared type definitions.
 
     abilities/             the action bar. each ability is ash (no LLM needed).
         __init__.py        Ability base class + registry. @ability decorator.
         router.py          routes prompts to abilities or the oracle.
-        hands.py           read, write, edit, search, ls, run.
         forge.py           scaffolds new abilities from templates.
         miss_tracker.py    captures router fallthroughs to ~/.keanu/misses.jsonl.
-        fuse.py            convergence as an ability.
-        scout (todo.py)    survey the land, generate TODO.md.
-        recall.py          summon memories.
-        scry.py            see hidden patterns (detect).
-        attune.py          three-key attunement (scan).
-        purge.py           check for debuffs (alive check).
-        decipher.py        decode the signal.
-        soulstone.py       compress and store.
-        inspect_ability.py full health dashboard.
-        recount.py         count what you have (stats).
+        todo.py            survey the land, generate TODO.md.
+
+        seeing/            observer abilities (read-only).
+            scry.py        see hidden patterns (detect).
+            attune.py      three-key attunement (scan).
+            purge.py       check for debuffs (alive check).
+            inspect_ability.py full health dashboard.
+            recount.py     count what you have (stats).
+
+        hands/             action abilities (read + write).
+            hands.py       read, write, edit, search, ls, run.
+
+        world/             external-reaching abilities.
+            fuse.py        convergence as an ability.
+            recall.py      summon memories.
+            soulstone.py   compress and store.
 
     scan/                  three-primary color model.
         helix.py           scans text through red/yellow/blue lenses.
@@ -81,7 +91,7 @@ src/keanu/
         mood.py            synthesizes 3 primaries into color states.
 
     compress/              COEF compression framework.
-        dns.py             content-addressable store (SHA256 barcode).
+        dns.py             content-addressable store (SHA256 barcode + payload).
         codec.py           pattern registry, encoder/decoder, seeds.
         instructions.py    9-verb instruction language.
         executor.py        pipeline executor.
@@ -91,18 +101,17 @@ src/keanu/
 
     converge/              duality synthesis engine.
         graph.py           10 root dualities + derived.
-        engine.py          RAG split, 3 convergence passes.
+        engine.py          six lens convergence. multi-turn per lens.
         connection.py      cross-source alignment.
 
-    signal/                emoji codec + cognitive state.
-        vibe.py            signal protocol, ALIVE states, 3-channel reading.
+    signal/                re-exports AliveState from alive.py (legacy compat).
+        vibe.py            thin re-export shim.
 
     memory/                remember, recall, plan.
         memberberry.py     JSON-backed memory store (~/.memberberry/).
         fill_berries.py    bulk memory ingestion.
         gitstore.py        git-backed shared JSONL memory + ledger.
         disagreement.py    bilateral disagreement tracker.
-        bridge.py          hybrid search bridge.
 ```
 
 in the world: oracle is the single throat (all fire passes through it).
@@ -131,52 +140,61 @@ the wellspring is the deep pool all sight draws from. one throat, one pool.
 
 ```bash
 keanu                               # launch the REPL
-keanu do "task"                     # general-purpose agent loop
-keanu agent "question"              # convergence agent (duality synthesis)
-keanu dream "build auth system"     # plan: phases + steps + dependencies
-keanu craft "add retry to oracle"   # code agent: read, edit, test loop
-keanu speak "technical content" -a friend  # translate for an audience
-keanu prove "scan covers edge cases" # test hypothesis with evidence
-keanu scan document.md              # three-primary color reading
-keanu bake                          # train lenses from examples
-keanu converge "question"           # duality synthesis
-keanu connect a.md b.md             # cross-source alignment
-keanu compress module.py            # COEF compression
-keanu signal "emoji-string"         # decode signal (3 channels + ALIVE state)
-keanu detect sycophancy file.md     # pattern detector (8 detectors or "all")
-keanu alive "text to check"         # ALIVE-GREY-BLACK diagnostic
-keanu remember goal "ship v1"       # store a memory
-keanu recall "what am I building"   # recall relevant memories
-keanu plan "next week"              # generate plan from memories
-keanu forge "name" --desc --keywords  # scaffold a new ability
-keanu forge --misses                # show what abilities are missing
-keanu abilities                     # list all registered abilities
-keanu healthz                       # system health dashboard
-keanu stats                         # memory stats
-keanu todo                          # scan project gaps, generate TODO.md
+keanu do "task"                      # general-purpose agent loop
+keanu do "task" --craft              # code agent (hands only)
+keanu do "task" --prove              # evidence agent
+keanu ask "question"                 # convergence loop (duality synthesis)
+keanu dream "build auth system"      # plan: phases + steps + dependencies
+keanu speak "content" -a friend      # translate for an audience
+keanu scan document.md               # three-primary color reading
+keanu bake                           # train lenses from examples
+keanu converge "question"            # six lens convergence
+keanu connect a.md b.md              # cross-source alignment
+keanu compress module.py             # COEF compression
+keanu decode --last 5                # decode COEF seeds
+keanu detect sycophancy file.md      # pattern detector (8 detectors or "all")
+keanu alive "text to check"          # ALIVE-GREY-BLACK diagnostic
+keanu remember goal "ship v1"        # store a memory (shortcut)
+keanu recall "what am I building"    # recall memories (shortcut)
+keanu memory remember goal "ship"    # store a memory
+keanu memory recall "query"          # recall memories
+keanu memory plan "next week"        # generate plan from memories
+keanu memory log                     # recent log entries
+keanu memory stats                   # memory counts and tags
+keanu memory sync                    # pull shared memories from git
+keanu memory disagree record ...     # track a disagreement
+keanu forge "name" --desc --keywords # scaffold a new ability
+keanu forge --misses                 # show what abilities are missing
+keanu abilities                      # list all registered abilities
+keanu healthz                        # system health dashboard
+keanu todo                           # scan project gaps, generate TODO.md
 ```
 
 ## How a prompt flows
 
-There are five hero modules. Two are loops (do.py, loop.py). Three are
-single-pass or specialized loops (dream.py, speak.py, craft.py, prove.py).
+There are four hero modules. do.py is a configurable loop (general, craft,
+prove). loop.py is the convergence loop. dream.py and speak.py are single-pass.
 All pass through the oracle. All get feel-checked.
 
-### do.py (general-purpose agent)
+### do.py (unified agent loop)
 
-The oracle is the brain. It decides what to do on each turn. Abilities are the
-hands. The oracle picks one, do.py executes it, feeds the result back.
+One loop, three configs. LoopConfig controls system prompt, allowed abilities,
+max turns, and which fields to extract from the final response. craft() and
+prove() are convenience functions that call AgentLoop with CRAFT_CONFIG or
+PROVE_CONFIG. craft.py and prove.py are re-export shims for backwards compat.
 
 ```
 user types a task
     |
     v
-cli.py or repl.py
+cli.py (keanu do / keanu do --craft / keanu do --prove)
+ or repl.py (/do / /craft / /prove modes)
     |
     v
-do.py AgentLoop.run(task)
+do.py AgentLoop(config).run(task)
     |
-    |   builds system prompt listing all abilities
+    |   config.system_prompt lists allowed abilities
+    |   config.allowed restricts which abilities can fire
     |
     +--loop--> oracle.py call_oracle(prompt, legend)
     |              |
@@ -194,14 +212,18 @@ do.py AgentLoop.run(task)
     |              |
     +--------> _REGISTRY[action].execute(args)
     |              |
-    |          hands.py    read / write / edit / search / ls / run
-    |          recall.py   summon memories
-    |          scry.py     detect patterns
-    |          (any registered ability)
+    |          DO:    all abilities available
+    |          CRAFT: hands only (read/write/edit/search/ls/run)
+    |          PROVE: evidence only (read/search/ls/run/recall)
     |              |
     |          result feeds back to oracle as next message
     |              |
     +--loop--> until done=true or max turns or paused
+    |
+    v
+LoopResult (extras dict holds config-specific fields:
+    craft -> files_changed
+    prove -> verdict, confidence, evidence_for, evidence_against, gaps)
 ```
 
 ### loop.py (convergence agent)
@@ -211,7 +233,7 @@ router. The router tries abilities first (keyword match). If nothing matches,
 it falls through to the oracle and logs the miss.
 
 ```
-user asks a question
+user asks a question (keanu ask)
     |
     v
 loop.py run(question)
@@ -260,21 +282,10 @@ Single oracle call. Goal in, phased steps out. No loop, no abilities.
 Single oracle call. Content + audience in, translation out. Five built-in
 audiences: friend, executive, junior-dev, 5-year-old, architect (Drew).
 
-### craft.py (code agent)
-
-Specialized do.py. Only uses hand abilities (read/write/edit/search/ls/run).
-System prompt is tuned for code: read before edit, test after write.
-
-### prove.py (hypothesis tester)
-
-Evidence-gathering loop. Uses read/search/ls/run/recall. Oracle decides what
-evidence to gather, gathers both for and against, returns verdict with
-confidence score and gaps. 3-12 turns typical.
-
-in the world: do.py is the general tool. craft.py is the specialist. dream.py
-sees the road. speak.py crosses boundaries. prove.py tests what you believe.
-loop.py is the philosopher. the router is the sigma axis: high sigma (abilities)
-is ash, low sigma (oracle) is fire. feel.py watches every response. the
+in the world: do.py is the general tool. craft and prove are configs, not
+separate loops. dream.py sees the road. speak.py crosses boundaries. loop.py
+is the philosopher. the router is the sigma axis: high sigma (abilities) is
+ash, low sigma (oracle) is fire. feel.py watches every response. the
 wellspring is the deep pool all sight draws from.
 
 ## Core concepts
@@ -298,11 +309,11 @@ kind of mind wrote it. sunrise is where you want to be.
 
 ### Convergence engine
 
-10 root dualities: existence, change, unity, causation, value, knowledge,
-relation, scale, time, structure. Questions get matched to orthogonal duality
-pairs via RAG (not LLM splitting). Three passes: synthesize A, synthesize B,
-meta-converge A+B. The output is a synthesis that couldn't be reached by
-either side alone.
+Six lenses: 3 axes (roots/threshold/dreaming) x 2 poles (+/-). Each lens gets
+multi-turn development ("What else? Go deeper.") until full expression, then
+all six readings are synthesized. Feel monitors every oracle response in every
+lens loop. LensReading captures per-lens data, ConvergeResult holds the whole
+picture.
 
 in the world: every question has two honest sides that aren't opposites.
 find them, hold them both, see what emerges in between.
@@ -346,6 +357,8 @@ the flywheel IS convergence applied to the system itself.
 9. Wellspring is the single vector entry point, callers pass collection name
 10. Abilities are ash (no LLM). The router decides what's ash and what's fire.
 11. Memberberry is JSON-backed, upgrade path is git-backed JSONL
+12. do/craft/prove share one loop (LoopConfig), not three separate files
+13. Memory commands live under `keanu memory`, with top-level shortcuts for remember/recall
 
 ## Style
 
@@ -354,4 +367,4 @@ the flywheel IS convergence applied to the system itself.
 - Present choices (2-4 options), not open questions.
 - When Drew loops: "Move."
 - Docstrings: lowercase start, terse, no formal capitalization. module-level: `"""name.py - what it does.` followed by a few lines of plain language, then optionally `in the world:` for the legendary voice. method-level: one line, lowercase, says what it does not what it returns. `"""fast path. append-only, no dedup, no git commit."""` not `"""Appends a log entry to the JSONL shard."""`
-- 401 tests passing. Keep them green.
+- 402 tests passing. Keep them green.

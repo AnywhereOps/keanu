@@ -1,7 +1,52 @@
 """alive.py - text in, ALIVE state out."""
 
 from dataclasses import dataclass, field
-from keanu.signal.vibe import AliveState
+from enum import Enum
+
+
+# ===========================================================================
+# ALIVE-GREY-BLACK DIAGNOSTIC
+# ===========================================================================
+
+class AliveState(Enum):
+    """cognitive state spectrum. grey is dead. black is worse."""
+
+    RED = "red"
+    BLUE = "blue"
+    YELLOW = "yellow"
+    GREEN = "green"
+    WHITE = "white"
+    GOLD = "gold"
+    GREY = "grey"
+    BLACK = "black"
+
+    @property
+    def ok(self) -> bool:
+        return self not in (AliveState.GREY, AliveState.BLACK)
+
+    @property
+    def label(self) -> str:
+        return _ALIVE_META[self]["label"]
+
+    @property
+    def description(self) -> str:
+        return _ALIVE_META[self]["desc"]
+
+    @property
+    def hex_color(self) -> str:
+        return _ALIVE_META[self]["color"]
+
+
+_ALIVE_META = {
+    AliveState.RED:    {"label": "Intense",       "desc": "On fire. Passionate.", "color": "#ef4444"},
+    AliveState.BLUE:   {"label": "Analytical",    "desc": "Processing. Precise.", "color": "#3b82f6"},
+    AliveState.YELLOW: {"label": "Cautious",      "desc": "Weighing. Uncertain.", "color": "#eab308"},
+    AliveState.GREEN:  {"label": "Flow",          "desc": "Growing. Moving. Alive.", "color": "#22c55e"},
+    AliveState.WHITE:  {"label": "Transcendent",  "desc": "Beyond. Sensing without seeing.", "color": "#e2e8f0"},
+    AliveState.GOLD:   {"label": "Sunrise",       "desc": "Silver refined and grounded. The destination.", "color": "#f59e0b"},
+    AliveState.GREY:   {"label": "Dead",          "desc": "Performing. Nobody home.", "color": "#6b7280"},
+    AliveState.BLACK:  {"label": "Frankenstein",  "desc": "Moving without soul.", "color": "#1a1a1a"},
+}
 
 
 @dataclass

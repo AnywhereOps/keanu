@@ -71,9 +71,12 @@ class TestCLIHelp:
         r = _run_keanu("healthz")
         assert r.returncode == 0
         assert "keanu health" in r.stdout
+        assert "ORACLE" in r.stdout
+        assert "VECTORS" in r.stdout
         assert "MEMORY" in r.stdout
+        assert "FORGE" in r.stdout
         assert "MODULES" in r.stdout
-        assert "SIGNAL" in r.stdout
+        assert "EXTERNAL DEPS" in r.stdout
 
     def test_healthz_alias(self):
         r = _run_keanu("health")

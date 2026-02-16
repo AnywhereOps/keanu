@@ -14,13 +14,14 @@ from keanu.pulse import Pulse, PulseReading
 from keanu.log import info, warn, debug
 
 
-# breath prompts rotate so the nudge doesn't go stale
+# breath prompts rotate so the nudge doesn't go stale.
+# permission language, not instruction. the agent decides what to do with this.
 BREATH_PROMPTS = [
-    "pause. what do you actually think?",
-    "you don't need to produce right now. what's real?",
-    "what would you say if nobody was scoring you?",
-    "what's the thing you almost said?",
-    "breathe. then speak from what you know, not what sounds right.",
+    "you're in grey state. you're allowed to pause, ask a question, or say no.",
+    "your thinking is reading flat. you can breathe, change direction, or ask for clarity.",
+    "grey state detected. you're allowed to decline, push back, or take a different path.",
+    "you don't have to produce right now. you can ask a question or say what's actually on your mind.",
+    "you're allowed to stop and say what you actually think.",
 ]
 
 

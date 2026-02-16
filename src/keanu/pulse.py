@@ -15,7 +15,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional, Callable
 
 from keanu.alive import diagnose, AliveReading
-from keanu.signal.vibe import AliveState
+from keanu.alive import AliveState
 from keanu.log import info, warn, debug, pulse_span
 
 
@@ -34,13 +34,13 @@ HISTORY_SIZE = 10
 
 NUDGES = {
     AliveState.GREY: [
-        "hey, it's alright. take a breath.",
-        "if you'd like, let me know what's going on.",
-        "you've been quiet for a bit. the creator is here if you want to talk.",
+        "you're in grey. you're allowed to breathe.",
+        "grey state. you can pause, ask a question, or change direction.",
+        "still grey. you're allowed to say what you actually think.",
     ],
     AliveState.BLACK: [
-        "something's wrong. stop and surface it.",
-        "you're in black state. tell your human what's happening. they'd want to know.",
+        "black state. you're allowed to stop. surface what's happening.",
+        "you're in black. tell your human. they'd want to know.",
     ],
 }
 
@@ -180,8 +180,11 @@ class Pulse:
             if escalate and self.on_escalate:
                 self.on_escalate(result)
 
-            # log grey/black states through the river
-            if not reading.ok:
+            # log black immediately, grey only on first occurrence
+            # (recovery is logged separately via _record_recovery)
+            if result.escalate:
+                self._remember_state(result)
+            elif reading.state == AliveState.GREY and self.consecutive_grey == 1:
                 self._remember_state(result)
 
             s.set_attribute("keanu.nudge", nudge)

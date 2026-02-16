@@ -2,8 +2,7 @@
 
 from unittest.mock import patch, MagicMock
 from keanu.pulse import Pulse, PulseReading
-from keanu.alive import AliveReading
-from keanu.signal.vibe import AliveState
+from keanu.alive import AliveReading, AliveState
 
 
 def _mock_diagnose(state, evidence=None, **kwargs):
@@ -130,8 +129,8 @@ class TestPulseMemory:
             p.check("flat 1")
             p.check("flat 2")
             p.check("came back")
-        # 2 grey memories + 1 recovery lesson
-        assert mock_remember.call_count == 3
+        # 1 grey memory (first occurrence only) + 1 recovery lesson
+        assert mock_remember.call_count == 2
         content = mock_remember.call_args[0][0]
         assert "recovered" in content
         assert mock_remember.call_args[1]["memory_type"] == "lesson"

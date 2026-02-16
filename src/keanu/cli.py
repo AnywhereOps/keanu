@@ -290,19 +290,6 @@ def cmd_compress(args):
     print(f"Stored: {store.store(content)[:16]}")
 
 
-def cmd_signal(args):
-    from keanu.signal import from_sequence
-    sig = from_sequence(args.signal)
-    reading = sig.reading()
-    print(f"  Sequence:  {reading['ch1_said']}")
-    print(f"  Feeling:   {reading['ch2_feeling']}")
-    print(f"  Meaning:   {reading['ch3_meaning']}")
-    print(f"  ALIVE:     {reading['alive']} (ok: {reading['alive_ok']})")
-    subsets = sig.matched_subsets()
-    if subsets:
-        print(f"  Subsets:   {', '.join(f'{k} = {v}' for k, v in subsets)}")
-
-
 def cmd_detect(args):
     from keanu.detect.engine import run
     from keanu.detect import DETECTORS
@@ -525,7 +512,6 @@ def _health_modules():
         "detect/engine":  ("keanu.detect.engine", "pattern vectors"),
         "compress/dns":   ("keanu.compress.dns", "content-addressable"),
         "converge":       ("keanu.converge.engine", "duality synthesis"),
-        "signal":         ("keanu.signal", "emoji codec"),
         "memory":         ("keanu.memory.memberberry", "remember/recall/plan"),
         "memory/git":     ("keanu.memory.gitstore", "shared JSONL"),
         "memory/disagree":("keanu.memory.disagreement", "bilateral tracker"),
@@ -541,6 +527,62 @@ def _health_modules():
     print()
 
 
+def _health_oracle():
+    import os
+    print(f"  ORACLE")
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if key:
+        masked = key[:8] + "..." + key[-4:] if len(key) > 12 else "***"
+        print(f"    api key:   {masked}")
+    else:
+        print(f"    api key:   NOT SET (set ANTHROPIC_API_KEY)")
+    print()
+
+
+def _health_vectors():
+    print(f"  VECTORS")
+    try:
+        from keanu.wellspring import depths
+        chroma_dir = Path(depths())
+        if not chroma_dir.exists():
+            print(f"    status:    NOT BAKED (run keanu bake)")
+            print()
+            return
+        try:
+            import chromadb
+            client = chromadb.PersistentClient(path=str(chroma_dir))
+            collections = client.list_collections()
+            names = [c.name for c in collections]
+            print(f"    status:    baked ({len(collections)} collections)")
+            for name in sorted(names):
+                count = client.get_collection(name).count()
+                print(f"    {name:<16} {count} vectors")
+        except ImportError:
+            print(f"    status:    chromadb not installed")
+        except Exception as e:
+            print(f"    status:    error ({e})")
+    except Exception as e:
+        print(f"    status:    error ({e})")
+    print()
+
+
+def _health_forge():
+    from keanu.abilities import list_abilities
+    from keanu.abilities.miss_tracker import get_misses
+    abilities = list_abilities()
+    misses = get_misses(limit=100)
+    print(f"  FORGE")
+    print(f"    abilities: {len(abilities)} registered")
+    print(f"    misses:    {len(misses)} logged")
+    if misses:
+        from keanu.abilities.miss_tracker import analyze_misses
+        top = analyze_misses(limit=100)[:3]
+        if top:
+            words = ", ".join(f"{w} ({c}x)" for w, c in top)
+            print(f"    top miss:  {words}")
+    print()
+
+
 def _health_deps():
     print(f"  EXTERNAL DEPS")
     for dep, purpose in {"chromadb": "vector storage", "requests": "LLM API"}.items():
@@ -552,21 +594,6 @@ def _health_deps():
     print()
 
 
-def _health_signal():
-    try:
-        from keanu.signal import core, AliveState
-        sig = core()
-        reading = sig.reading()
-        state = "ALIVE" if reading.get("alive_ok", False) else "CHECK"
-        print(f"  SIGNAL")
-        print(f"    core:      {reading.get('ch1_said', '?')}")
-        print(f"    state:     {reading.get('alive', 'unknown')} ({state})")
-    except Exception:
-        print(f"  SIGNAL")
-        print(f"    (could not read core signal)")
-    print()
-
-
 def cmd_health(args):
     from keanu.memory import MemberberryStore, DisagreementTracker
     store = _get_store(args.shared)
@@ -574,11 +601,13 @@ def cmd_health(args):
     print("\n  ╔══════════════════════════════════════╗")
     print("  ║          keanu health                ║")
     print("  ╚══════════════════════════════════════╝\n")
+    _health_oracle()
+    _health_vectors()
     total = _health_memory(store)
     _health_disagreement(tracker, total)
+    _health_forge()
     _health_modules()
     _health_deps()
-    _health_signal()
 
 
 def cmd_abilities(args):
@@ -832,10 +861,6 @@ def _build_parsers(subparsers):
     p.add_argument("file")
     p.set_defaults(func=cmd_compress)
 
-    p = subparsers.add_parser("signal", help="Decode emoji signal")
-    p.add_argument("signal")
-    p.set_defaults(func=cmd_signal)
-
     p = subparsers.add_parser("detect", help="Pattern detector")
     p.add_argument("detector", choices=DETECTORS + ["all"])
     p.add_argument("file")
@@ -976,6 +1001,14 @@ def main():
         pass
 
     args.func(args)
+    _stamp()
+
+
+def _stamp():
+    """print the keanu stamp after every command."""
+    from datetime import datetime, timezone
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print(f"\n  🤖💚🐕 keanu | github.com/AnywhereOps/keanu | {ts}")
 
 
 if __name__ == "__main__":
