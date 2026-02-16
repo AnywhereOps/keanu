@@ -464,7 +464,7 @@ class TestHands:
         ab = _REGISTRY["read"]
         f = tmp_path / "test.txt"
         f.write_text("hello world")
-        with patch("keanu.abilities.hands._is_safe_path", return_value=True):
+        with patch("keanu.abilities.hands.hands._is_safe_path", return_value=True):
             result = ab.execute("", {"file_path": str(f)})
         assert result["success"] is True
         assert "hello world" in result["result"]
@@ -477,7 +477,7 @@ class TestHands:
     def test_write_execute(self, tmp_path):
         ab = _REGISTRY["write"]
         f = tmp_path / "out.txt"
-        with patch("keanu.abilities.hands._is_safe_path", return_value=True):
+        with patch("keanu.abilities.hands.hands._is_safe_path", return_value=True):
             result = ab.execute("", {"file_path": str(f), "content": "wrote this"})
         assert result["success"] is True
         assert f.read_text() == "wrote this"
@@ -486,7 +486,7 @@ class TestHands:
         ab = _REGISTRY["edit"]
         f = tmp_path / "edit_me.txt"
         f.write_text("old value here")
-        with patch("keanu.abilities.hands._is_safe_path", return_value=True):
+        with patch("keanu.abilities.hands.hands._is_safe_path", return_value=True):
             result = ab.execute("", {
                 "file_path": str(f),
                 "old_string": "old value",
@@ -499,7 +499,7 @@ class TestHands:
         ab = _REGISTRY["edit"]
         f = tmp_path / "dupe.txt"
         f.write_text("aaa\naaa\n")
-        with patch("keanu.abilities.hands._is_safe_path", return_value=True):
+        with patch("keanu.abilities.hands.hands._is_safe_path", return_value=True):
             result = ab.execute("", {
                 "file_path": str(f),
                 "old_string": "aaa",

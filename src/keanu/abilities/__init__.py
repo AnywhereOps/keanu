@@ -155,13 +155,6 @@ class TodoAbility(Ability):
 
 
 # register external abilities (decorator runs at import time)
-import keanu.abilities.recall      # noqa: F401
-import keanu.abilities.scry        # noqa: F401
-import keanu.abilities.attune      # noqa: F401
-import keanu.abilities.purge       # noqa: F401
-import keanu.abilities.decipher    # noqa: F401
-import keanu.abilities.soulstone   # noqa: F401
-import keanu.abilities.inspect_ability  # noqa: F401
-import keanu.abilities.recount     # noqa: F401
-import keanu.abilities.hands       # noqa: F401
-import keanu.abilities.fuse        # noqa: F401
+import keanu.abilities.seeing      # noqa: F401  (scry, attune, purge, decipher, inspect, recount)
+import keanu.abilities.hands       # noqa: F401  (read, write, edit, search, ls, run)
+import keanu.abilities.world       # noqa: F401  (fuse, recall, soulstone)
