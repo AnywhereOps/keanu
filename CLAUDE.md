@@ -75,6 +75,10 @@ src/keanu/
                            decisions, attempts, errors. dies when loop ends.
     context.py             context manager. tracks what the agent knows,
                            token budget, import graph awareness, priority files.
+    symbols.py             AST-based symbol finding. find_definition,
+                           find_references, find_callers, list_symbols.
+    router.py              smart model routing. picks haiku/sonnet/opus
+                           based on task complexity, turn count, keywords.
 
     legends/               who answers when you ask.
         __init__.py        Legend dataclass + registry. load_legend(name).
@@ -96,6 +100,7 @@ src/keanu/
         repl.py            interactive terminal. /do, /craft, /prove modes.
         ide.py             MCP client for the VSCode extension.
         types.py           shared type definitions.
+        autocorrect.py     self-correction after edits. lint, test, retry.
 
     abilities/             the action bar. each ability is ash (no LLM needed).
         __init__.py        Ability base class + registry. @ability decorator.
@@ -210,6 +215,10 @@ keanu format                         # run project formatter
 keanu format --check                 # check formatting only
 keanu deps                           # dependency graph stats
 keanu deps --who src/keanu/oracle.py # who imports this file?
+keanu symbols call_oracle            # find where call_oracle is defined
+keanu symbols call_oracle --refs     # find all references
+keanu symbols call_oracle --callers  # find all callers
+keanu symbols --list src/keanu/oracle.py  # list all symbols in a file
 keanu healthz                        # system health dashboard
 keanu metrics                        # convergence metrics (fire/ash ratio)
 keanu metrics --days 30              # metrics over 30 days

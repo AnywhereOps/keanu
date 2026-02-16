@@ -817,6 +817,53 @@ def cmd_mistakes(args):
 
 
 def cmd_deps(args):
+def cmd_symbols(args):
+    """Find symbol definitions or references."""
+    from keanu.symbols import find_definition, find_references, find_callers, list_symbols
+
+    name = args.name
+    root = args.root or "."
+
+    if args.list_file:
+        symbols = list_symbols(args.list_file)
+        if symbols:
+            print(f"\n  Symbols in {args.list_file}:\n")
+            for s in symbols:
+                parent = f" ({s.parent})" if s.parent else ""
+                print(f"    {s.line:4d}  {s.kind:<10} {s.name}{parent}")
+        else:
+            print(f"\n  No symbols found in {args.list_file}")
+        print()
+        return
+
+    if not name:
+        print("  Usage: keanu symbols <name> or keanu symbols --list <file>")
+        return
+
+    if args.callers:
+        results = find_callers(name, root)
+        label = "Callers of"
+    elif args.refs:
+        results = find_references(name, root)
+        label = "References to"
+    else:
+        results = find_definition(name, root)
+        label = "Definitions of"
+
+    if results:
+        print(f"\n  {label} '{name}':\n")
+        for r in results[:30]:
+            if hasattr(r, "kind"):
+                parent = f" ({r.parent})" if r.parent else ""
+                print(f"    {r.file}:{r.line}  {r.kind}{parent}")
+            else:
+                print(f"    {r.file}:{r.line}  {r.context}")
+    else:
+        print(f"\n  No results for '{name}'")
+    print()
+
+
+def cmd_deps(args):
     """Show dependency graph stats."""
     from keanu.deps import stats as dep_stats, find_circular, external_deps
     root = args.root or "."
@@ -1222,6 +1269,14 @@ def _build_parsers(subparsers):
     p.add_argument("--path", default="", help="Path to format (default: cwd)")
     p.add_argument("--check", action="store_true", help="Check only, don't modify")
     p.set_defaults(func=cmd_format)
+
+    p = subparsers.add_parser("symbols", aliases=["sym"], help="Find symbol definitions/references")
+    p.add_argument("name", nargs="?", default="", help="Symbol name to find")
+    p.add_argument("--root", default="", help="Project root (default: cwd)")
+    p.add_argument("--refs", action="store_true", help="Find references instead of definitions")
+    p.add_argument("--callers", action="store_true", help="Find callers of a function")
+    p.add_argument("--list", dest="list_file", default="", help="List all symbols in a file")
+    p.set_defaults(func=cmd_symbols)
 
     p = subparsers.add_parser("deps", help="Dependency graph stats")
     p.add_argument("--root", default="", help="Project root (default: cwd)")

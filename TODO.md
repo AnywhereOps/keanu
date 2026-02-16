@@ -420,4 +420,7 @@
 - [x] Phase 2: Session memory (session.py) - working memory per loop run
 - [x] Phase 2: Context manager (context.py) - token budget, import awareness
 - [x] Phase 1: Git ability (git.py) + test runner (test.py)
-- [x] 667 tests passing
+- [x] Phase 1: AST-based symbol finding (symbols.py) - find_definition/references/callers
+- [x] Phase 3: Smart model routing (router.py) - haiku/sonnet/opus by complexity
+- [x] Phase 5: Self-correction loop (autocorrect.py) - lint/test/retry after edits
+- [x] 726 tests passing
