@@ -12,7 +12,7 @@ nothing is deleted. everything is a lesson.
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
 
-from keanu.compress.dns import short_hash
+from keanu.abilities.world.compress.dns import short_hash
 
 
 @dataclass
@@ -43,7 +43,7 @@ class DisagreementTracker:
 
     def _scan_both(self, human_text: str, ai_text: str) -> tuple[list, list]:
         """Run both texts through empathy vectors. Same lens. Same quality."""
-        from keanu.detect.engine import detect_emotion
+        from keanu.abilities.seeing.detect.engine import detect_emotion
         human_reading = detect_emotion(human_text)
         ai_reading = detect_emotion(ai_text)
         return human_reading, ai_reading

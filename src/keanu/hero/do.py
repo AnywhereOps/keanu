@@ -20,7 +20,7 @@ from keanu.abilities import _REGISTRY, list_abilities, record_cast
 from keanu.oracle import call_oracle, try_interpret
 from keanu.hero.feel import Feel, FeelResult
 from keanu.log import info, warn, debug
-from keanu.session import Session
+from keanu.infra.session import Session
 
 
 from keanu.hero.types import Step
@@ -46,7 +46,7 @@ class LoopConfig:
 
 def _build_system(abilities: list[dict], ide_context: str = "") -> str:
     """build the system prompt for the general-purpose loop."""
-    hands = ["read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format", "patch"]
+    hands = ["read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format", "patch", "rename", "extract", "move", "lookup"]
     seeing = []
 
     for ab in abilities:
@@ -66,6 +66,10 @@ def _build_system(abilities: list[dict], ide_context: str = "") -> str:
         "  lint: run project linter. args: {path?, command?, fix?}",
         "  format: run project formatter. args: {path?, command?, check?}",
         "  patch: multi-file atomic edit. args: {edits: [{file_path, old_string, new_string}], preview?}",
+        "  rename: rename symbol across project (AST-aware). args: {old_name, new_name, root?, preview?}",
+        "  extract: extract lines into new function. args: {file_path, start_line, end_line, new_name, preview?}",
+        "  move: move function/class between modules. args: {name, from_file, to_file, root?, preview?}",
+        "  lookup: search docs or fetch URL. args: {url?, query?, library?, site?}",
     ]
 
     base = f"""You are keanu. You solve tasks by using abilities.
@@ -140,6 +144,15 @@ Your tools:
   lint: run project linter. args: {path?, command?, fix?}
   format: run project formatter. args: {path?, command?, check?}
   patch: multi-file atomic edit. args: {edits: [{file_path, old_string, new_string}], preview?}
+  rename: rename symbol across project (AST-aware). args: {old_name, new_name, root?, preview?}
+  extract: extract lines into new function. args: {file_path, start_line, end_line, new_name, preview?}
+  move: move function/class between modules. args: {name, from_file, to_file, root?, preview?}
+  lookup: search docs or fetch URL. args: {url?, query?, library?, site?}
+
+Refactoring:
+  rename: rename symbol across project (AST-aware). args: {old_name, new_name, root?, preview?}
+  extract: extract lines into new function. args: {file_path, start_line, end_line, new_name, preview?}
+  move: move function/class between modules. args: {name, from_file, to_file, root?, preview?}
 
 On each turn, respond with JSON:
 {
@@ -252,7 +265,7 @@ You're just looking around. If nothing interests you, that's fine to say.
 If something surprises you, follow it. If you want to breathe, breathe."""
 
 
-HANDS = {"read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format", "patch"}
+HANDS = {"read", "write", "edit", "search", "ls", "run", "git", "test", "lint", "format", "patch", "rename", "extract", "move", "lookup"}
 EVIDENCE_TOOLS = {"read", "search", "ls", "run", "recall"}
 EXPLORE_TOOLS = {"read", "search", "ls", "run", "recall"}
 
@@ -335,8 +348,20 @@ class AgentLoop:
         if self.config.name == "do":
             from keanu.hero.ide import ide_context_string
             ide_ctx = ide_context_string()
-            return _build_system(list_abilities(), ide_context=ide_ctx)
-        return self.config.system_prompt
+            base = _build_system(list_abilities(), ide_context=ide_ctx)
+        else:
+            base = self.config.system_prompt
+
+        # inject learned style preferences
+        try:
+            from keanu.infra.corrections import style_prompt_injection
+            style = style_prompt_injection()
+            if style:
+                base += f"\n\n{style}"
+        except Exception:
+            pass
+
+        return base
 
     def run(self, task: str, legend: str = "creator",
             model: str = None) -> LoopResult:
@@ -344,6 +369,11 @@ class AgentLoop:
         system = self._get_system()
         self.session.task = task
         messages = [f"TASK: {task}"]
+
+        # inject project context so the agent knows what it's working with
+        project_ctx = self._project_context()
+        if project_ctx:
+            messages.append(f"[PROJECT] {project_ctx}")
 
         info(self.config.name, f"{self.config.name}: {task[:80]}")
 
@@ -447,7 +477,7 @@ class AgentLoop:
 
             # track convergence metrics + mistake memory
             try:
-                from keanu.metrics import record_ash
+                from keanu.infra.metrics import record_ash
                 record_ash(action, success=exec_result["success"])
             except Exception:
                 pass
@@ -472,7 +502,7 @@ class AgentLoop:
                 )
                 self.session.note_error(exec_result["result"][:200])
                 try:
-                    from keanu.mistakes import log_mistake
+                    from keanu.infra.mistakes import log_mistake
                     log_mistake(action, args, exec_result["result"],
                                 context=thinking)
                 except Exception:
@@ -493,7 +523,7 @@ class AgentLoop:
             # on failure, parse the error for the agent
             if not exec_result["success"] and action in ("run", "test"):
                 try:
-                    from keanu.errors import parse as parse_error
+                    from keanu.analysis.errors import parse as parse_error
                     parsed_err = parse_error(result_text)
                     if parsed_err.category != "unknown":
                         result_text += f"\n\n[PARSED] {parsed_err.summary()}"
@@ -512,6 +542,24 @@ class AgentLoop:
 
         return self._result(task, "max_turns",
                             error=f"hit {self.max_turns} turn limit")
+
+    def _project_context(self) -> str:
+        """detect project type and return a context string for the agent."""
+        try:
+            from keanu.analysis.project import detect
+            proj = detect()
+            if not proj or proj.kind == "unknown":
+                return ""
+            parts = [f"kind={proj.kind}"]
+            if proj.name:
+                parts.append(f"name={proj.name}")
+            if proj.test_command:
+                parts.append(f"test_cmd='{proj.test_command}'")
+            if proj.entry_points:
+                parts.append(f"entry={','.join(proj.entry_points[:3])}")
+            return " ".join(parts)
+        except Exception:
+            return ""
 
     def _result(self, task, status, answer="", extras=None, error=""):
         """build a LoopResult."""

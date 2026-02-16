@@ -2,7 +2,7 @@
 
 import ast
 
-from keanu.cache import FileCache, ASTCache, SymbolCache, CacheEntry
+from keanu.tools.cache import FileCache, ASTCache, SymbolCache, CacheEntry
 
 
 class TestCacheEntry:

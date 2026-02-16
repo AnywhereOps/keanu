@@ -11,6 +11,7 @@ from rich.markdown import Markdown
 from rich.text import Text
 
 from keanu.abilities import list_abilities
+from keanu.hero.completer import setup_readline, save_history, search_history
 from keanu.hero.do import AgentLoop, Step, DO_CONFIG, CRAFT_CONFIG, PROVE_CONFIG, EXPLORE_CONFIG
 from keanu.log import info
 
@@ -36,7 +37,12 @@ HELP_TEXT = """
   [bold]/explore[/bold]           explore mode. no task, just curiosity.
   [bold]/model[/bold] [dim][name][/dim]     show or switch model
   [bold]/legend[/bold] [dim][name][/dim]    show or switch legend
+  [bold]/history[/bold] [dim][query][/dim]  search command history
+  [bold]/cost[/bold]              show session cost
+  [bold]/clear[/bold]             clear screen
   [bold]/quit[/bold]              exit
+
+  [dim]tab completes commands, abilities, and file paths[/dim]
 """
 
 MODES = {"do": DO_CONFIG, "craft": CRAFT_CONFIG, "prove": PROVE_CONFIG, "explore": EXPLORE_CONFIG}
@@ -81,6 +87,7 @@ class Repl:
         self.model = model
         self.config = DO_CONFIG
         self.store = None
+        self.completer = setup_readline()
         try:
             from keanu.memory import MemberberryStore
             self.store = MemberberryStore()
@@ -93,8 +100,8 @@ class Repl:
 
         while True:
             try:
-                prompt = f"[green]{self.config.name}> [/green]" if self.config != DO_CONFIG else "[green]> [/green]"
-                user_input = console.input(prompt).strip()
+                prompt_text = f"{self.config.name}> " if self.config != DO_CONFIG else "> "
+                user_input = input(prompt_text).strip()
             except (EOFError, KeyboardInterrupt):
                 self._quit()
                 break
@@ -153,6 +160,38 @@ class Repl:
                     console.print(f"  [red]unknown legend[/red] ({' | '.join(available)})")
             else:
                 console.print(f"  legend: [green]{self.legend}[/green]")
+        elif command == "/history":
+            results = search_history(arg or "", limit=20)
+            if results:
+                for item in results:
+                    console.print(f"  [dim]{item}[/dim]")
+            else:
+                console.print("  [dim]no history[/dim]" if not arg else f"  [dim]no matches for '{arg}'[/dim]")
+        elif command == "/cost":
+            try:
+                from keanu.oracle import get_session_cost
+                cost = get_session_cost()
+                console.print(f"  [dim]{cost.summary()}[/dim]")
+            except Exception:
+                console.print("  [dim]no cost data[/dim]")
+        elif command == "/clear":
+            console.clear()
+        elif command == "/health":
+            try:
+                from keanu.gen.auto_forge import check_project_health
+                health = check_project_health(".")
+                console.print(f"  [green]health: {health['score']}/100[/green]")
+                for issue in health.get("issues", []):
+                    console.print(f"  [dim]{issue['message']}[/dim]")
+            except Exception:
+                console.print("  [dim]health check unavailable[/dim]")
+        elif command == "/metrics":
+            try:
+                from keanu.infra.metrics import dashboard
+                d = dashboard(days=7)
+                console.print(f"  [dim]{d['message']}[/dim]")
+            except Exception:
+                console.print("  [dim]metrics unavailable[/dim]")
         else:
             console.print(f"  [red]unknown:[/red] {command}. try /help")
         return False
@@ -190,6 +229,7 @@ class Repl:
     def _quit(self):
         from keanu.log import flush_sink
         flush_sink()
+        save_history()
         console.print("\n  [dim]bye[/dim]")
 
 

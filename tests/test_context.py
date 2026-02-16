@@ -1,6 +1,6 @@
 """tests for context manager."""
 
-from keanu.context import ContextManager, FileContext
+from keanu.infra.context import ContextManager, FileContext
 
 
 class TestFileContext:

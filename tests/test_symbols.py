@@ -1,6 +1,6 @@
 """tests for symbol finding."""
 
-from keanu.symbols import (
+from keanu.analysis.symbols import (
     find_definition, find_references, find_callers,
     list_symbols, Symbol, Reference,
 )

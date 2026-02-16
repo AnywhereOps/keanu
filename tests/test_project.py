@@ -4,7 +4,7 @@ import json
 import pytest
 from pathlib import Path
 
-from keanu.project import detect, ProjectModel, _detect_ci
+from keanu.analysis.project import detect, ProjectModel, _detect_ci
 
 
 class TestPythonProject:

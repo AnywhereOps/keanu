@@ -36,7 +36,7 @@ def tap(collection):
     in the world: tap into a specific vein of the wellspring.
     """
     try:
-        from keanu.compress.behavioral import BehavioralStore
+        from keanu.abilities.world.compress.behavioral import BehavioralStore
         store = BehavioralStore()
         if store.has_collection(collection):
             return store

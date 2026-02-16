@@ -81,20 +81,20 @@ class TestDetectLintCommand:
     def test_uses_project_model(self):
         mock_model = MagicMock()
         mock_model.lint_command = "ruff check ."
-        with patch("keanu.project.detect", return_value=mock_model):
+        with patch("keanu.analysis.project.detect", return_value=mock_model):
             cmd = _detect_lint_command(".")
             assert cmd == "ruff check ."
 
     def test_fallback_python(self, tmp_path):
         (tmp_path / "pyproject.toml").write_text("[project]\n")
         # patch detect to fail so fallback kicks in
-        with patch("keanu.project.detect", side_effect=Exception("no")):
+        with patch("keanu.analysis.project.detect", side_effect=Exception("no")):
             cmd = _detect_lint_command(str(tmp_path))
             assert "ruff" in cmd
 
     def test_fallback_node(self, tmp_path):
         (tmp_path / "package.json").write_text("{}")
-        with patch("keanu.project.detect", side_effect=Exception("no")):
+        with patch("keanu.analysis.project.detect", side_effect=Exception("no")):
             cmd = _detect_lint_command(str(tmp_path))
             assert "eslint" in cmd
 
@@ -104,13 +104,13 @@ class TestDetectFormatCommand:
     def test_uses_project_model(self):
         mock_model = MagicMock()
         mock_model.format_command = "black ."
-        with patch("keanu.project.detect", return_value=mock_model):
+        with patch("keanu.analysis.project.detect", return_value=mock_model):
             cmd = _detect_format_command(".")
             assert cmd == "black ."
 
     def test_fallback_go(self, tmp_path):
         (tmp_path / "go.mod").write_text("module foo\n")
-        with patch("keanu.project.detect", side_effect=Exception("no")):
+        with patch("keanu.analysis.project.detect", side_effect=Exception("no")):
             cmd = _detect_format_command(str(tmp_path))
             assert "gofmt" in cmd
 

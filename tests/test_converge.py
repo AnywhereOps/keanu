@@ -1,7 +1,7 @@
 """tests for converge/ - duality graph and JSON parsing (no LLM needed)."""
 
-from keanu.converge.graph import DualityGraph
-from keanu.converge.engine import LENSES
+from keanu.abilities.world.converge.graph import DualityGraph
+from keanu.abilities.world.converge.engine import LENSES
 from keanu.oracle import interpret
 
 

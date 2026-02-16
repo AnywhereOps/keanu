@@ -26,7 +26,7 @@ class CompressAbility(Ability):
         return False, 0.0
 
     def execute(self, prompt: str, context: dict = None) -> dict:
-        from keanu.compress.dns import ContentDNS
+        from keanu.abilities.world.compress.dns import ContentDNS
 
         text = prompt
         if context:

@@ -53,6 +53,8 @@ moral framework: love > loyalty > faith > truth > safety, accuracy, helpful.
 ```
 src/keanu/
     oracle.py              wraps all LLM API calls. one throat, one change.
+                           token estimation, model fallback chain, cost tracking,
+                           response caching. all fire passes through here.
     wellspring.py          wraps all vector/chromadb access. one pool.
     alive.py               ALIVE-GREY-BLACK diagnostic. text in, state out.
     cli.py                 every keanu command starts here.
@@ -83,6 +85,51 @@ src/keanu/
                            style issues. OWASP patterns, Python anti-patterns.
     cache.py               session-scoped caching. FileCache, ASTCache,
                            SymbolCache. invalidates on write.
+    refactor.py            AST-aware refactoring. rename across project,
+                           extract function, move symbol between modules.
+    codegen.py             code generation. scaffold templates, generate test
+                           stubs from function signatures, find TODOs/stubs.
+    corrections.py         learning from corrections. logs when human corrects
+                           agent, detects patterns, builds style preferences.
+    suggestions.py         proactive code suggestions. unused imports, dead code,
+                           complexity, style issues. gentle, not spammy.
+    docgen.py              documentation generation. docstrings (google/numpy/terse),
+                           mermaid class diagrams, changelog from git, API summaries.
+    security.py            secret detection, dependency scanning, audit logging.
+                           catches secrets before they leak.
+    profile.py             profiling and benchmarking. cProfile hotspots,
+                           function benchmarking, memory profiling with tracemalloc.
+    database.py            database awareness. SQL parsing, ORM model detection,
+                           query analysis, index suggestions, model generation.
+    ci.py                  CI monitoring. test runs, flaky detection, bisect
+                           failures, health tracking over time.
+    plugins.py             plugin system. entry point discovery, hook events,
+                           custom legends, per-plugin config.
+    telemetry.py           trace spans. start/end/persist to JSONL, analyze
+                           traces, cost and duration stats.
+    parallel.py            parallel file ops. read/write/run in threads,
+                           batch AST parsing, file watching.
+    packaging.py           packaging helpers. version detection, semver bump,
+                           validation checks, install script generation.
+    firstrun.py            first-run setup. dependency checks, setup wizard,
+                           quickstart guide. graceful degradation.
+    ops.py                 proactive ops monitoring. dep staleness, test health,
+                           doc drift, code quality, git hygiene.
+    rag.py                 codebase RAG. file chunking, incremental indexing,
+                           hybrid search (semantic + keyword), JSON fallback.
+    polyglot.py            multi-language analysis. JS/TS/Go/Rust/Ruby/Java/C
+                           symbol finding, imports, project language detection.
+    migrate.py             database migrations. SQL generation, schema diff,
+                           migration files, system detection (alembic/django/prisma).
+    changelog.py           changelog from git. conventional commits, type grouping,
+                           breaking changes, release notes.
+    scaffold.py            project scaffolding. package, CLI, API, library templates.
+    config.py              layered config. defaults -> global -> project -> env.
+    diff.py                diff analysis. parse unified diffs, stats, move detection,
+                           change classification.
+    environ.py             environment detection. virtualenvs, docker, CI, tools.
+    apigen.py              API client generation. OpenAPI parsing, typed Python
+                           clients, dataclass model generation.
 
     legends/               who answers when you ask.
         __init__.py        Legend dataclass + registry. load_legend(name).
@@ -102,60 +149,66 @@ src/keanu/
         craft.py           re-export shim. imports from do.py.
         prove.py           re-export shim. imports from do.py.
         repl.py            interactive terminal. /do, /craft, /prove modes.
+                           tab completion, history, cost display.
+        completer.py       readline tab completion and history for REPL.
         ide.py             MCP client for the VSCode extension.
         types.py           shared type definitions.
         autocorrect.py     self-correction after edits. lint, test, retry.
         decompose.py       task decomposition. is_complex, decompose_simple,
                            decompose_with_dream. breaks tasks into subtasks.
+        coordinate.py      multi-agent coordination. pipelines, parallel
+                           execution, context sharing, disagreement detection.
+        sessions.py        REPL session save/restore. auto-save, list,
+                           delete, pick up where you left off.
 
     abilities/             the action bar. each ability is ash (no LLM needed).
         __init__.py        Ability base class + registry. @ability decorator.
         router.py          routes prompts to abilities or the oracle.
         forge.py           scaffolds new abilities from templates.
+        schema.py          input/output schemas, ability chains with rollback.
         miss_tracker.py    captures router fallthroughs to ~/.keanu/misses.jsonl.
         todo.py            survey the land, generate TODO.md.
 
         seeing/            observer abilities (read-only).
-            scry.py        see hidden patterns (detect).
-            attune.py      three-key attunement (scan).
+            scry.py        see hidden patterns (wraps detect/).
+            attune.py      three-key attunement (wraps scan/).
             purge.py       check for debuffs (alive check).
             inspect_ability.py full health dashboard.
             recount.py     count what you have (stats).
+            explore/       codebase RAG (ingest, retrieve, search).
+            detect/        pattern detection engine.
+                engine.py  8 pattern detectors via vector similarity.
+                mood.py    synthesizes 3 primaries into color states.
+            scan/          three-primary color model engine.
+                helix.py   scans text through red/yellow/blue lenses.
+                bake.py    trains lenses from examples into vectors.
 
         hands/             action abilities (read + write).
             hands.py       read, write, edit, search, ls, run.
+            git.py         version control. status, diff, log, blame, branch, commit.
+            test.py        test runner. discover, run, targeted, coverage.
             lint.py        lint and format abilities. auto-detect from project model.
             patch.py       multi-file atomic edits. rollback on failure.
+            refactor.py    refactoring abilities. rename, extract, move.
 
         world/             external-reaching abilities.
-            fuse.py        convergence as an ability.
+            fuse.py        convergence as an ability (wraps converge/).
             recall.py      summon memories.
-            soulstone.py   compress and store.
-
-    scan/                  three-primary color model.
-        helix.py           scans text through red/yellow/blue lenses.
-        bake.py            trains lenses from examples into vectors.
-
-    detect/                pattern detection.
-        engine.py          8 pattern detectors via vector similarity.
-        mood.py            synthesizes 3 primaries into color states.
-
-    compress/              COEF compression framework.
-        dns.py             content-addressable store (SHA256 barcode + payload).
-        codec.py           pattern registry, encoder/decoder, seeds.
-        instructions.py    9-verb instruction language.
-        executor.py        pipeline executor.
-        exporter.py        span exporter (logging bridge).
-        stack.py           combined codec/dns/vectors layer.
-        vectors.py         COEF-specific vector math (not chromadb).
-
-    converge/              duality synthesis engine.
-        graph.py           10 root dualities + derived.
-        engine.py          six lens convergence. multi-turn per lens.
-        connection.py      cross-source alignment.
-
-    signal/                re-exports AliveState from alive.py (legacy compat).
-        vibe.py            thin re-export shim.
+            soulstone.py   compress and store (wraps compress/).
+            lookup.py      web lookup. fetch docs, search APIs, cache per session.
+            compress/      COEF compression framework.
+                dns.py     content-addressable store (SHA256 barcode + payload).
+                codec.py   pattern registry, encoder/decoder, seeds.
+                behavioral.py transparent behavioral feature vectors.
+                instructions.py 9-verb instruction language.
+                executor.py pipeline executor.
+                exporter.py span exporter (logging bridge).
+                stack.py   combined codec/dns/vectors layer.
+                vectors.py COEF-specific vector math (not chromadb).
+            converge/      duality synthesis engine.
+                graph.py   10 root dualities + derived.
+                engine.py  six lens convergence. multi-turn per lens.
+                connection.py cross-source alignment.
 
     memory/                remember, recall, plan.
         memberberry.py     JSON-backed memory store (~/.memberberry/).
@@ -235,6 +288,35 @@ keanu metrics --days 30              # metrics over 30 days
 keanu mistakes                       # mistake patterns and forgeable signals
 keanu mistakes --clear               # clear stale mistakes
 keanu todo                           # scan project gaps, generate TODO.md
+keanu suggest                        # scan project for code suggestions
+keanu suggest --file src/keanu/foo.py  # suggestions for one file
+keanu suggest --missing-tests        # find source files without tests
+keanu gen --tests-for src/keanu/foo.py  # generate test stubs for a file
+keanu gen --template ability --name greet  # scaffold from template
+keanu gen --stubs-in src/keanu/foo.py    # find TODOs and stubs
+keanu corrections                    # show learned correction patterns
+keanu corrections --prefs            # show style preferences
+keanu mcp                            # run as MCP server over stdio
+keanu doc --docstrings src/keanu/foo.py  # generate docstrings
+keanu doc --class-diagram src/keanu/foo.py  # mermaid class diagram
+keanu doc --changelog                # changelog from git history
+keanu doc --api src/keanu/foo.py     # API summary
+keanu auto-forge                     # show forge candidates (dry run)
+keanu auto-forge --run               # actually forge abilities
+keanu auto-forge --health            # project health check
+keanu security                       # scan for secrets in project
+keanu security --staged              # check staged files for secrets
+keanu security --deps                # scan dependencies for vulns
+keanu security --gitignore           # check gitignore coverage
+keanu security --audit               # show audit log
+keanu profile --file script.py       # profile a Python script
+keanu profile --slow module.py       # find slow functions
+keanu db --detect                    # auto-detect database schema
+keanu db --analyze "SELECT * FROM x" # analyze a SQL query
+keanu db --generate users            # generate model from table
+keanu ci --run                       # run tests and log results
+keanu ci --health                    # test health summary
+keanu ci --history                   # CI run history
 ```
 
 ## How a prompt flows

@@ -3,11 +3,11 @@
 import json
 from unittest.mock import patch, MagicMock
 
-from keanu.converge.engine import (
+from keanu.abilities.world.converge.engine import (
     run, _develop_lens, _get_graph_context,
     LENSES, LensReading, ConvergeResult,
 )
-from keanu.converge.graph import DualityGraph
+from keanu.abilities.world.converge.graph import DualityGraph
 
 
 class TestLensReading:
@@ -80,7 +80,7 @@ class TestDevelopLens:
         mock_feel = MagicMock()
         mock_feel.check.return_value = MagicMock(should_pause=False)
 
-        with patch("keanu.converge.engine.call_oracle", side_effect=fake_oracle):
+        with patch("keanu.abilities.world.converge.engine.call_oracle", side_effect=fake_oracle):
             reading = _develop_lens(
                 LENSES[0], "test question", "", mock_feel,
             )
@@ -94,7 +94,7 @@ class TestDevelopLens:
         mock_feel = MagicMock()
         mock_feel.check.return_value = MagicMock(should_pause=True)
 
-        with patch("keanu.converge.engine.call_oracle", return_value="dark"):
+        with patch("keanu.abilities.world.converge.engine.call_oracle", return_value="dark"):
             reading = _develop_lens(
                 LENSES[0], "test", "", mock_feel,
             )
@@ -106,7 +106,7 @@ class TestDevelopLens:
         mock_feel = MagicMock()
         mock_feel.check.return_value = MagicMock(should_pause=False)
 
-        with patch("keanu.converge.engine.call_oracle", return_value="more"):
+        with patch("keanu.abilities.world.converge.engine.call_oracle", return_value="more"):
             reading = _develop_lens(
                 LENSES[0], "test", "", mock_feel, max_turns=3,
             )
@@ -117,7 +117,7 @@ class TestDevelopLens:
     def test_lens_handles_connection_error(self):
         mock_feel = MagicMock()
 
-        with patch("keanu.converge.engine.call_oracle", side_effect=ConnectionError("down")):
+        with patch("keanu.abilities.world.converge.engine.call_oracle", side_effect=ConnectionError("down")):
             reading = _develop_lens(
                 LENSES[0], "test", "", mock_feel,
             )
@@ -160,9 +160,9 @@ class TestRun:
         })
         responses = [lens_response] * 6 + [synth_response]
 
-        with patch("keanu.converge.engine.call_oracle",
+        with patch("keanu.abilities.world.converge.engine.call_oracle",
                    side_effect=self._mock_oracle_sequence(responses)):
-            with patch("keanu.converge.engine.Feel") as mock_feel_cls:
+            with patch("keanu.abilities.world.converge.engine.Feel") as mock_feel_cls:
                 mock_feel = MagicMock()
                 mock_feel.check.return_value = MagicMock(should_pause=False)
                 mock_feel.stats.return_value = {}
@@ -177,9 +177,9 @@ class TestRun:
         assert result.what_changes == "everything"
 
     def test_handles_oracle_down(self):
-        with patch("keanu.converge.engine.call_oracle",
+        with patch("keanu.abilities.world.converge.engine.call_oracle",
                    side_effect=ConnectionError("offline")):
-            with patch("keanu.converge.engine.Feel") as mock_feel_cls:
+            with patch("keanu.abilities.world.converge.engine.Feel") as mock_feel_cls:
                 mock_feel = MagicMock()
                 mock_feel.stats.return_value = {}
                 mock_feel_cls.return_value = mock_feel
@@ -203,9 +203,9 @@ class TestRun:
         })
         all_responses = lens_responses + [quick_response] * 5 + [synth_response]
 
-        with patch("keanu.converge.engine.call_oracle",
+        with patch("keanu.abilities.world.converge.engine.call_oracle",
                    side_effect=self._mock_oracle_sequence(all_responses)):
-            with patch("keanu.converge.engine.Feel") as mock_feel_cls:
+            with patch("keanu.abilities.world.converge.engine.Feel") as mock_feel_cls:
                 mock_feel = MagicMock()
                 mock_feel.check.return_value = MagicMock(should_pause=False)
                 mock_feel.stats.return_value = {}
@@ -220,14 +220,14 @@ class TestRun:
 
     def test_graph_context_included(self):
         result_graph = []
-        with patch("keanu.converge.engine.call_oracle", return_value="DONE"):
-            with patch("keanu.converge.engine.Feel") as mock_feel_cls:
+        with patch("keanu.abilities.world.converge.engine.call_oracle", return_value="DONE"):
+            with patch("keanu.abilities.world.converge.engine.Feel") as mock_feel_cls:
                 mock_feel = MagicMock()
                 mock_feel.check.return_value = MagicMock(should_pause=False)
                 mock_feel.stats.return_value = {}
                 mock_feel_cls.return_value = mock_feel
 
-                with patch("keanu.converge.engine._synthesize",
+                with patch("keanu.abilities.world.converge.engine._synthesize",
                           return_value={"synthesis": "ok", "one_line": "ok"}):
                     result = run("consciousness and free will")
 

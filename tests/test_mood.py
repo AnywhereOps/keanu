@@ -1,6 +1,6 @@
 """Tests for detect/mood.py - the three-primary color model."""
 
-from keanu.detect.mood import detect, SynthesisReading, PrimaryReading
+from keanu.abilities.seeing.detect.mood import detect, SynthesisReading, PrimaryReading
 
 
 def test_detect_returns_synthesis_reading():

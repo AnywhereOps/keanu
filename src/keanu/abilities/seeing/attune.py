@@ -27,7 +27,7 @@ class ScanAbility(Ability):
         return False, 0.0
 
     def execute(self, prompt: str, context: dict = None) -> dict:
-        from keanu.scan.helix import run as helix_run
+        from keanu.abilities.seeing.scan.helix import run as helix_run
 
         file_path = None
         if context:

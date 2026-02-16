@@ -13,3 +13,4 @@ from keanu.abilities.hands.git import GitAbility  # noqa: F401
 from keanu.abilities.hands.test import TestAbility  # noqa: F401
 from keanu.abilities.hands.lint import LintAbility, FormatAbility  # noqa: F401
 from keanu.abilities.hands.patch import PatchAbility  # noqa: F401
+from keanu.abilities.hands.refactor import RenameAbility, ExtractAbility, MoveAbility  # noqa: F401

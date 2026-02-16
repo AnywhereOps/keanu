@@ -154,7 +154,7 @@ def _hot(emotions: list) -> bool:
 
 
 def _get_emotions(text: str) -> list:
-    from keanu.detect.engine import detect_emotion
+    from keanu.abilities.seeing.detect.engine import detect_emotion
     return detect_emotion(text)
 
 
@@ -167,12 +167,12 @@ def _get_color(text: str) -> dict:
     if collection is None:
         return empty
 
-    from keanu.scan.helix import _query_primary
+    from keanu.abilities.seeing.scan.helix import _query_primary
     r = _query_primary(collection, text, "red")
     y = _query_primary(collection, text, "yellow")
     b = _query_primary(collection, text, "blue")
 
-    from keanu.detect.mood import detect as mood_detect
+    from keanu.abilities.seeing.detect.mood import detect as mood_detect
     mood = mood_detect(
         red_pos=r.pos * 10, red_neg=r.neg * 10,
         yellow_pos=y.pos * 10, yellow_neg=y.neg * 10,

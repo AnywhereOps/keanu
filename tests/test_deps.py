@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 
-from keanu.deps import (
+from keanu.analysis.deps import (
     build_import_graph, who_imports, what_imports,
     find_circular, external_deps, stats,
     _extract_imports, _build_module_map,

@@ -1,6 +1,6 @@
 """tests for session working memory."""
 
-from keanu.session import Session, Decision, Attempt
+from keanu.infra.session import Session, Decision, Attempt
 
 
 class TestDecision:

@@ -160,7 +160,7 @@ def cmd_do(args):
 def cmd_ask(args):
     """Run the convergence loop on a question."""
     from keanu.hero.loop import run as agent_run
-    from keanu.converge.graph import DualityGraph
+    from keanu.abilities.world.converge.graph import DualityGraph
 
     # RAG context injection
     rag_context = ""
@@ -257,13 +257,13 @@ def cmd_speak(args):
 # ============================================================
 
 def cmd_scan(args):
-    from keanu.scan.helix import run
+    from keanu.abilities.seeing.scan.helix import run
     for filepath in args.files:
         run(filepath, output_json=args.json)
 
 
 def cmd_bake(args):
-    from keanu.scan.bake import bake
+    from keanu.abilities.seeing.scan.bake import bake
     bake(args.lenses if args.lenses else None)
 
 
@@ -368,7 +368,7 @@ def cmd_format(args):
 
 
 def cmd_converge(args):
-    from keanu.converge.engine import run
+    from keanu.abilities.world.converge.engine import run
     result = run(args.question, legend=args.legend, model=args.model, verbose=True)
     if not result.ok:
         print(f"Could not converge: {result.error or 'no synthesis'}")
@@ -391,12 +391,12 @@ def cmd_converge(args):
 
 
 def cmd_connect(args):
-    from keanu.converge.connection import run
+    from keanu.abilities.world.converge.connection import run
     run(args.source_a, args.source_b)
 
 
 def cmd_compress(args):
-    from keanu.compress.dns import ContentDNS
+    from keanu.abilities.world.compress.dns import ContentDNS
     store = ContentDNS()
     with open(args.file) as f:
         content = f.read()
@@ -404,8 +404,8 @@ def cmd_compress(args):
 
 
 def cmd_detect(args):
-    from keanu.detect.engine import run
-    from keanu.detect import DETECTORS
+    from keanu.abilities.seeing.detect.engine import run
+    from keanu.abilities.seeing.detect import DETECTORS
     detectors = DETECTORS if args.detector == "all" else [args.detector]
     for d in detectors:
         run(args.file, d, title=d.upper().replace("_", " ") + " SCAN",
@@ -620,11 +620,11 @@ def _health_disagreement(tracker, total_memories):
 def _health_modules():
     print(f"  MODULES")
     modules = {
-        "scan/helix":     ("keanu.scan.helix", "needs chromadb"),
-        "detect/mood":    ("keanu.detect.mood", "color theory"),
-        "detect/engine":  ("keanu.detect.engine", "pattern vectors"),
-        "compress/dns":   ("keanu.compress.dns", "content-addressable"),
-        "converge":       ("keanu.converge.engine", "duality synthesis"),
+        "scan/helix":     ("keanu.abilities.seeing.scan.helix", "needs chromadb"),
+        "detect/mood":    ("keanu.abilities.seeing.detect.mood", "color theory"),
+        "detect/engine":  ("keanu.abilities.seeing.detect.engine", "pattern vectors"),
+        "compress/dns":   ("keanu.abilities.world.compress.dns", "content-addressable"),
+        "converge":       ("keanu.abilities.world.converge.engine", "duality synthesis"),
         "memory":         ("keanu.memory.memberberry", "remember/recall/plan"),
         "memory/git":     ("keanu.memory.gitstore", "shared JSONL"),
         "memory/disagree":("keanu.memory.disagreement", "bilateral tracker"),
@@ -698,8 +698,8 @@ def _health_forge():
 
 def _health_convergence():
     try:
-        from keanu.metrics import ratio
-        from keanu.mistakes import stats as mistake_stats
+        from keanu.infra.metrics import ratio
+        from keanu.infra.mistakes import stats as mistake_stats
         r = ratio(7)
         ms = mistake_stats()
         print(f"  CONVERGENCE")
@@ -770,7 +770,7 @@ def cmd_abilities(args):
 
 def cmd_metrics(args):
     """Show convergence metrics dashboard."""
-    from keanu.metrics import dashboard
+    from keanu.infra.metrics import dashboard
     d = dashboard(days=args.days)
     r = d["fire_ash_ratio"]
     print(f"\n  CONVERGENCE METRICS ({d['period_days']}d)\n")
@@ -791,7 +791,7 @@ def cmd_metrics(args):
 
 def cmd_mistakes(args):
     """Show mistake patterns."""
-    from keanu.mistakes import get_patterns, stats as mistake_stats, clear_stale
+    from keanu.infra.mistakes import get_patterns, stats as mistake_stats, clear_stale
     if args.clear:
         removed = clear_stale()
         print(f"  Cleared {removed} stale mistakes.")
@@ -818,7 +818,7 @@ def cmd_mistakes(args):
 
 def cmd_review(args):
     """Review code for issues."""
-    from keanu.review import review_diff, review_file
+    from keanu.analysis.review import review_diff, review_file
     import subprocess
 
     if args.file:
@@ -854,7 +854,7 @@ def cmd_review(args):
 
 def cmd_symbols(args):
     """Find symbol definitions or references."""
-    from keanu.symbols import find_definition, find_references, find_callers, list_symbols
+    from keanu.analysis.symbols import find_definition, find_references, find_callers, list_symbols
 
     name = args.name
     root = args.root or "."
@@ -900,11 +900,11 @@ def cmd_symbols(args):
 
 def cmd_deps(args):
     """Show dependency graph stats."""
-    from keanu.deps import stats as dep_stats, find_circular, external_deps
+    from keanu.analysis.deps import stats as dep_stats, find_circular, external_deps
     root = args.root or "."
 
     if args.who:
-        from keanu.deps import who_imports
+        from keanu.analysis.deps import who_imports
         importers = who_imports(args.who, root)
         if importers:
             print(f"\n  Files that import {args.who}:\n")
@@ -931,6 +931,485 @@ def cmd_deps(args):
         for c in cycles[:3]:
             print(f"    {' -> '.join(c)}")
     print()
+
+
+def cmd_suggest(args):
+    """Scan code for proactive suggestions."""
+    from keanu.analysis.suggestions import scan_file, scan_directory, check_missing_tests
+
+    if args.file:
+        suggestions = scan_file(args.file)
+        if suggestions:
+            print(f"\n  Suggestions for {args.file}:\n")
+            for s in suggestions:
+                print(f"    {s}")
+                if s.fix:
+                    print(f"      -> {s.fix}")
+        else:
+            print(f"\n  No suggestions for {args.file}\n")
+    elif args.missing_tests:
+        suggestions = check_missing_tests(args.root or ".")
+        if suggestions:
+            print(f"\n  Missing test files:\n")
+            for s in suggestions:
+                print(f"    {s.file}: {s.message}")
+        else:
+            print(f"\n  All source files have tests.\n")
+    else:
+        report = scan_directory(args.root or ".")
+        print(f"\n  {report.summary()}\n")
+        if report.suggestions:
+            for s in report.suggestions[:30]:
+                print(f"    {s}")
+    print()
+
+
+def cmd_codegen(args):
+    """Generate code from templates or function signatures."""
+    from keanu.gen.codegen import scaffold, generate_tests, find_stubs
+
+    if args.tests_for:
+        result = generate_tests(args.tests_for)
+        if result.success:
+            if args.output:
+                Path(args.output).write_text(result.code)
+                print(f"\n  Generated tests -> {args.output}\n")
+            else:
+                print(f"\n{result.code}")
+        else:
+            print(f"\n  Error: {'; '.join(result.errors)}\n")
+    elif args.stubs_in:
+        stubs = find_stubs(args.stubs_in)
+        if stubs:
+            print(f"\n  Stubs in {args.stubs_in}:\n")
+            for s in stubs:
+                print(f"    {s['file']}:{s['line']}  {s['text']}")
+        else:
+            print(f"\n  No stubs found in {args.stubs_in}\n")
+        print()
+    elif args.template:
+        variables = {}
+        if args.name:
+            variables["name"] = args.name
+        if args.desc:
+            variables["description"] = args.desc
+        if args.keywords:
+            variables["keywords"] = [k.strip() for k in args.keywords.split(",")]
+        result = scaffold(args.template, variables)
+        if result.success:
+            if args.output:
+                Path(args.output).write_text(result.code)
+                print(f"\n  Scaffolded {args.template} -> {args.output}\n")
+            else:
+                print(f"\n{result.code}")
+        else:
+            print(f"\n  Error: {'; '.join(result.errors)}\n")
+    else:
+        print("  Usage: keanu gen --template ability --name greet")
+        print("         keanu gen --tests-for src/keanu/oracle.py")
+        print("         keanu gen --stubs-in src/keanu/oracle.py")
+
+
+def cmd_mcp(args):
+    """Run keanu as an MCP server over stdio."""
+    from keanu.infra.mcp_server import MCPServer
+    server = MCPServer()
+    server.run_stdio()
+
+
+def cmd_docgen(args):
+    """Generate documentation from code."""
+    from keanu.gen.docgen import (
+        generate_docstrings, generate_class_diagram,
+        generate_changelog, generate_api_summary,
+    )
+
+    if args.docstrings:
+        result = generate_docstrings(args.docstrings, style=args.style)
+        if result.success:
+            if args.write:
+                Path(result.filepath).write_text(result.content)
+                print(f"\n  Docstrings written to {result.filepath}\n")
+            else:
+                print(f"\n{result.content}")
+        else:
+            print(f"\n  Error: {'; '.join(result.errors)}\n")
+    elif args.class_diagram:
+        result = generate_class_diagram(args.class_diagram)
+        if result.success:
+            print(f"\n{result.content}\n")
+        else:
+            print(f"\n  Error: {'; '.join(result.errors)}\n")
+    elif args.changelog:
+        result = generate_changelog(n_commits=args.n)
+        if result.success:
+            print(f"\n{result.content}")
+        else:
+            print(f"\n  Error: {'; '.join(result.errors)}\n")
+    elif args.api:
+        result = generate_api_summary(args.api)
+        if result.success:
+            print(f"\n{result.content}")
+        else:
+            print(f"\n  Error: {'; '.join(result.errors)}\n")
+    else:
+        print("  Usage: keanu doc --docstrings file.py")
+        print("         keanu doc --class-diagram file.py")
+        print("         keanu doc --changelog")
+        print("         keanu doc --api file.py")
+
+
+def cmd_auto_forge(args):
+    """Auto-forge pipeline: analyze misses, suggest or create abilities."""
+    from keanu.gen.auto_forge import (
+        get_all_candidates, auto_forge_all,
+        check_project_health, forge_history,
+    )
+
+    if args.health:
+        health = check_project_health(args.root or ".")
+        print(f"\n  PROJECT HEALTH: {health['score']}/100\n")
+        if health["issues"]:
+            for issue in health["issues"]:
+                icon = {"warning": "!", "info": " ", "hint": "?"}
+                print(f"  {icon.get(issue['severity'], ' ')} [{issue['category']}] {issue['message']}")
+        else:
+            print("  No issues found.")
+        print()
+    elif args.history:
+        history = forge_history()
+        if history:
+            print(f"\n  Forge history ({len(history)} entries):\n")
+            for h in history:
+                print(f"    {h['name']}  misses: {h['miss_count']}  confidence: {h.get('confidence', 0):.0%}")
+        else:
+            print("\n  No forge history yet.\n")
+        print()
+    elif args.run:
+        results = auto_forge_all(min_count=args.min_count, dry_run=False)
+        if results:
+            print(f"\n  Auto-forged {len(results)} abilities:\n")
+            for r in results:
+                status = r["action"]
+                name = r["candidate"]["name"]
+                print(f"    [{status}] {name}")
+                if r.get("result", {}).get("errors"):
+                    for e in r["result"]["errors"]:
+                        print(f"      error: {e}")
+        else:
+            print("\n  No candidates met the threshold.\n")
+        print()
+    else:
+        # default: show candidates (dry run)
+        results = auto_forge_all(min_count=args.min_count, dry_run=True)
+        if results:
+            print(f"\n  Forge candidates ({len(results)}):\n")
+            for r in results:
+                c = r["candidate"]
+                print(f"    {c['name']:<20} {c['miss_count']}x misses  confidence: {c.get('confidence', 0):.0%}")
+                if c.get("examples"):
+                    print(f"      e.g. \"{c['examples'][0][:60]}\"")
+        else:
+            candidates = get_all_candidates(min_count=1)
+            if candidates:
+                print(f"\n  {len(candidates)} candidates below threshold (min_count={args.min_count}):\n")
+                for c in candidates[:5]:
+                    print(f"    {c.name:<20} {c.miss_count}x misses")
+            else:
+                print("\n  No forge candidates. The system is handling everything.\n")
+        print()
+
+
+def cmd_database(args):
+    """Database schema detection and analysis."""
+    from keanu.data.database import detect_schema, analyze_query, generate_model
+
+    if args.detect:
+        schema = detect_schema(args.root or ".")
+        if schema.tables:
+            print(f"\n  Schema: {len(schema.tables)} tables\n")
+            for t in schema.tables:
+                pk = ", ".join(t.primary_keys()) or "none"
+                fk = len(t.foreign_keys())
+                print(f"    {t.name} ({len(t.columns)} cols, pk: {pk}, {fk} fk)")
+                for c in t.columns:
+                    extras = []
+                    if c.primary_key:
+                        extras.append("PK")
+                    if not c.nullable:
+                        extras.append("NOT NULL")
+                    if c.references:
+                        extras.append(f"-> {c.references}")
+                    extra_str = f" [{', '.join(extras)}]" if extras else ""
+                    print(f"      {c.name}: {c.type}{extra_str}")
+                print()
+            if schema.source_files:
+                print(f"  Sources: {', '.join(schema.source_files)}\n")
+        else:
+            print("\n  No schema detected.\n")
+    elif args.analyze:
+        analysis = analyze_query(args.analyze)
+        print(f"\n  Query type: {analysis.query_type}")
+        print(f"  Tables: {', '.join(analysis.tables)}")
+        features = []
+        if analysis.has_where:
+            features.append("WHERE")
+        if analysis.has_join:
+            features.append("JOIN")
+        if analysis.has_order_by:
+            features.append("ORDER BY")
+        if analysis.has_group_by:
+            features.append("GROUP BY")
+        if analysis.has_limit:
+            features.append("LIMIT")
+        if analysis.has_subquery:
+            features.append("SUBQUERY")
+        if features:
+            print(f"  Features: {', '.join(features)}")
+        if analysis.warnings:
+            print(f"\n  Warnings:")
+            for w in analysis.warnings:
+                print(f"    !! {w}")
+        print()
+    elif args.generate:
+        schema = detect_schema(args.root or ".")
+        table = schema.get_table(args.generate)
+        if table:
+            code = generate_model(table, style=args.style)
+            print(f"\n{code}")
+        else:
+            print(f"\n  Table '{args.generate}' not found.\n")
+    else:
+        print("  Usage: keanu db --detect")
+        print("         keanu db --analyze 'SELECT * FROM users'")
+        print("         keanu db --generate users")
+
+
+def cmd_ci(args):
+    """CI monitoring and test health."""
+    from keanu.data.ci import run_tests, log_run, health_summary, get_history
+
+    if args.run:
+        print("\n  Running tests...")
+        result = run_tests(args.target)
+        log_run(result)
+        status = "[green]" if result.green else "[red]"
+        print(f"\n  {result.passed} passed, {result.failed} failed, {result.errors} errors ({result.duration_s:.1f}s)")
+        if result.failures:
+            print(f"\n  Failures:")
+            for f in result.failures[:10]:
+                print(f"    {f['test']}")
+                if f['error']:
+                    print(f"      {f['error'][:100]}")
+        print()
+    elif args.health:
+        summary = health_summary()
+        if summary["status"] == "no data":
+            print("\n  No CI data. Run: keanu ci --run\n")
+        else:
+            print(f"\n  CI HEALTH: {summary['status'].upper()}")
+            print(f"  {summary['runs']} runs, {summary['success_rate']:.0%} green, trend: {summary['trend']}")
+            print(f"  avg: {summary['avg_tests']} tests in {summary['avg_duration_s']}s")
+            if summary['top_failures']:
+                print(f"\n  Top failures:")
+                for f in summary['top_failures']:
+                    print(f"    {f['test']} ({f['count']}x)")
+            print()
+    elif args.history_view:
+        history = get_history(limit=args.limit)
+        if history:
+            print(f"\n  CI history ({len(history)} runs):\n")
+            for h in history:
+                status = "green" if h.get("failed", 0) == 0 else "RED"
+                print(f"    [{status}] {h['passed']}p {h.get('failed', 0)}f {h.get('duration_s', 0):.1f}s  {h.get('commit', '')}")
+        else:
+            print("\n  No CI history.\n")
+        print()
+    else:
+        print("  Usage: keanu ci --run [target]")
+        print("         keanu ci --health")
+        print("         keanu ci --history")
+
+
+def cmd_security(args):
+    """Security scanning: secrets, dependencies, audit."""
+    from keanu.infra.security import (
+        scan_secrets, check_secrets_in_staged,
+        check_gitignore_coverage, scan_dependencies,
+        get_audit_log,
+    )
+
+    if args.audit:
+        entries = get_audit_log(limit=args.limit)
+        if entries:
+            print(f"\n  Audit log ({len(entries)} entries):\n")
+            for e in entries:
+                print(f"    [{e['action']}] {e['result']} ({e.get('duration_ms', 0)}ms)")
+        else:
+            print("\n  No audit entries.\n")
+    elif args.deps:
+        vulns = scan_dependencies(args.root or ".")
+        if vulns:
+            print(f"\n  Vulnerabilities ({len(vulns)}):\n")
+            for v in vulns:
+                print(f"    [{v.severity}] {v.package} {v.installed_version}: {v.advisory}")
+                if v.fix_version:
+                    print(f"      fix: {v.fix_version}")
+        else:
+            print("\n  No known vulnerabilities found.\n")
+    elif args.gitignore:
+        unprotected = check_gitignore_coverage(args.root or ".")
+        if unprotected:
+            print(f"\n  Sensitive files NOT in .gitignore:\n")
+            for f in unprotected:
+                print(f"    !! {f}")
+        else:
+            print("\n  All sensitive files are gitignored.\n")
+    elif args.staged:
+        findings = check_secrets_in_staged()
+        if findings:
+            print(f"\n  Secrets in staged files ({len(findings)}):\n")
+            for f in findings:
+                print(f"    !! {f}")
+        else:
+            print("\n  No secrets in staged files.\n")
+    else:
+        findings = scan_secrets(args.root or ".")
+        if findings:
+            print(f"\n  Secrets found ({len(findings)}):\n")
+            for f in findings:
+                print(f"    [{f.category}] {f.file}:{f.line} {f.snippet[:60]}")
+        else:
+            print("\n  No secrets detected.\n")
+    print()
+
+
+def cmd_profile(args):
+    """Profile code or benchmark functions."""
+    from keanu.infra.profile import profile_script, find_slow_functions
+
+    if args.file:
+        result = profile_script(args.file)
+        if result.success:
+            print(f"\n  Profile: {args.file}\n")
+            for h in result.hotspots[:args.limit]:
+                pct = (h.cum_time / result.total_time * 100) if result.total_time else 0
+                print(f"    {h.function:<30} {h.cum_time:.4f}s  {h.calls:>6} calls  {pct:.0f}%")
+            print(f"\n  Total: {result.total_time:.4f}s\n")
+        else:
+            print(f"\n  Error: {'; '.join(result.errors)}\n")
+    elif args.slow:
+        hotspots = find_slow_functions(args.slow, threshold_ms=args.threshold)
+        if hotspots:
+            print(f"\n  Slow functions in {args.slow} (>{args.threshold}ms):\n")
+            for h in hotspots:
+                print(f"    {h}")
+        else:
+            print(f"\n  No slow functions found (>{args.threshold}ms).\n")
+    else:
+        print("  Usage: keanu profile --file script.py")
+        print("         keanu profile --slow module.py --threshold 50")
+
+
+def cmd_corrections(args):
+    """Show learned correction patterns and style preferences."""
+    from keanu.infra.corrections import load_corrections, correction_patterns, load_style_prefs
+
+    if args.prefs:
+        prefs = load_style_prefs()
+        if prefs:
+            print(f"\n  Learned style preferences:\n")
+            for p in prefs:
+                conf = f"{p.confidence:.0%}"
+                print(f"    {p.rule:<24} {p.count}x  confidence: {conf}")
+        else:
+            print("\n  No style preferences learned yet.\n")
+    else:
+        patterns = correction_patterns(min_count=1)
+        if patterns:
+            print(f"\n  Correction patterns:\n")
+            for pattern, count in sorted(patterns.items(), key=lambda x: -x[1]):
+                print(f"    {pattern:<24} {count}x")
+        else:
+            print("\n  No corrections logged yet.\n")
+    print()
+
+
+def cmd_setup(args):
+    from keanu.infra.firstrun import check_setup, format_status, get_quickstart
+    if args.quickstart:
+        print(f"\n{get_quickstart()}\n")
+        return
+    status = check_setup()
+    print(f"\n{format_status(status)}\n")
+
+
+def cmd_ops(args):
+    from keanu.infra.ops import scan as ops_scan, get_ops_history
+    if args.history:
+        history = get_ops_history(limit=20)
+        if not history:
+            print("\n  No ops history yet.\n")
+            return
+        print(f"\n  Ops history (last {len(history)} scans):\n")
+        from datetime import datetime, timezone
+        for entry in reversed(history):
+            ts = datetime.fromtimestamp(entry.get("timestamp", 0), tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+            issues = entry.get("issue_count", 0)
+            critical = entry.get("critical", 0)
+            print(f"    {ts}  {issues} issues ({critical} critical)")
+        print()
+        return
+    checks = [c.strip() for c in args.checks.split(",") if c.strip()] if args.checks else None
+    report = ops_scan(args.root, checks=checks)
+    print(f"\n  Ops scan: {report.summary()}")
+    print(f"  Checks run: {report.checks_run}, Duration: {report.duration_s:.1f}s\n")
+    if report.issues:
+        for issue in report.issues:
+            severity = {"critical": "!", "warning": "~", "info": " "}.get(issue.severity, " ")
+            fix = " (auto-fixable)" if issue.auto_fixable else ""
+            print(f"    [{severity}] {issue.category}: {issue.message}{fix}")
+        print()
+
+
+def cmd_rag(args):
+    from keanu.data.rag import build_index, incremental_index, search, get_index_stats
+    if args.index:
+        print(f"\n  Building RAG index for {args.root}...")
+        stats = build_index(args.root)
+        print(f"  Indexed {stats.total_files} files, {stats.total_chunks} chunks\n")
+        return
+    if args.update:
+        print(f"\n  Updating RAG index for {args.root}...")
+        stats = incremental_index(args.root)
+        print(f"  Updated: {stats.total_files} files, {stats.total_chunks} new chunks\n")
+        return
+    if args.search:
+        results = search(args.search, args.root, n_results=args.n)
+        if not results:
+            print("\n  No results. Build the index first: keanu rag --index\n")
+            return
+        print(f"\n  {len(results)} results for '{args.search}':\n")
+        for r in results:
+            print(f"    [{r.score:.2f}] {r.chunk.file_path}:{r.chunk.start_line}-{r.chunk.end_line} ({r.source})")
+            preview = r.chunk.content[:100].replace("\n", " ")
+            print(f"           {preview}")
+        print()
+        return
+    if args.stats:
+        stats = get_index_stats()
+        if stats.total_files == 0:
+            print("\n  No index built. Run: keanu rag --index\n")
+            return
+        from datetime import datetime, timezone
+        ts = datetime.fromtimestamp(stats.indexed_at, tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+        print(f"\n  RAG Index Stats:")
+        print(f"    Root: {stats.root}")
+        print(f"    Files: {stats.total_files}")
+        print(f"    Chunks: {stats.total_chunks}")
+        print(f"    Indexed: {ts}\n")
+        return
+    print("  Usage: keanu rag --index | --update | --search 'query' | --stats")
 
 
 def cmd_forge(args):
@@ -977,9 +1456,9 @@ from keanu.paths import COEF_DIR
 
 def _coef_setup():
     """set up DNS + registry for COEF operations."""
-    from keanu.compress.dns import ContentDNS
-    from keanu.compress.codec import PatternRegistry
-    from keanu.compress.exporter import register_span_patterns
+    from keanu.abilities.world.compress.dns import ContentDNS
+    from keanu.abilities.world.compress.codec import PatternRegistry
+    from keanu.abilities.world.compress.exporter import register_span_patterns
     dns_dir = COEF_DIR / "dns"
     patterns_dir = COEF_DIR / "patterns"
     dns_dir.mkdir(parents=True, exist_ok=True)
@@ -990,7 +1469,7 @@ def _coef_setup():
 
 
 def _bootstrap_coef_tracing():
-    from keanu.compress.exporter import COEFSpanExporter
+    from keanu.abilities.world.compress.exporter import COEFSpanExporter
     from keanu.log import add_exporter
     dns, registry = _coef_setup()
     exporter = COEFSpanExporter(dns=dns, registry=registry)
@@ -998,7 +1477,7 @@ def _bootstrap_coef_tracing():
 
 
 def cmd_decode(args):
-    from keanu.compress.codec import COEFDecoder, Seed
+    from keanu.abilities.world.compress.codec import COEFDecoder, Seed
     dns, registry = _coef_setup()
     decoder = COEFDecoder(registry)
 
@@ -1088,7 +1567,7 @@ def _ensure_vectors():
                 need_bake = True
         if need_bake:
             info("cli", "vectors missing. baking...")
-            from keanu.scan.bake import bake
+            from keanu.abilities.seeing.scan.bake import bake
             bake()
             info("cli", "vectors baked.")
     except Exception as e:
@@ -1097,7 +1576,7 @@ def _ensure_vectors():
 
 def _build_parsers(subparsers):
     """register all subcommands."""
-    from keanu.detect import DETECTORS
+    from keanu.abilities.seeing.detect import DETECTORS
     from keanu.memory.memberberry import MemoryType
 
     # -- hero --
@@ -1322,6 +1801,99 @@ def _build_parsers(subparsers):
     p.add_argument("--root", default="", help="Project root (default: cwd)")
     p.add_argument("--who", default="", help="Who imports this file?")
     p.set_defaults(func=cmd_deps)
+
+    p = subparsers.add_parser("suggest", help="Proactive code suggestions")
+    p.add_argument("--file", default="", help="Scan a specific file")
+    p.add_argument("--root", default="", help="Project root for directory scan")
+    p.add_argument("--missing-tests", action="store_true", help="Check for missing test files")
+    p.set_defaults(func=cmd_suggest)
+
+    p = subparsers.add_parser("gen", aliases=["generate"], help="Code generation")
+    p.add_argument("--template", "-t", default="", choices=["ability", "test", "module", "cli_command", ""],
+                   help="Template to scaffold")
+    p.add_argument("--name", default="", help="Name for scaffold")
+    p.add_argument("--desc", default="", help="Description")
+    p.add_argument("--keywords", default="", help="Keywords (comma-separated)")
+    p.add_argument("--tests-for", default="", help="Generate tests for a file")
+    p.add_argument("--stubs-in", default="", help="Find stubs/TODOs in a file")
+    p.add_argument("--output", "-o", default="", help="Output file")
+    p.set_defaults(func=cmd_codegen)
+
+    p = subparsers.add_parser("mcp", help="Run as MCP server over stdio")
+    p.set_defaults(func=cmd_mcp)
+
+    p = subparsers.add_parser("corrections", help="Show learned correction patterns")
+    p.add_argument("--prefs", action="store_true", help="Show style preferences")
+    p.set_defaults(func=cmd_corrections)
+
+    p = subparsers.add_parser("db", aliases=["database"], help="Database schema detection and analysis")
+    p.add_argument("--detect", action="store_true", help="Auto-detect schema from project files")
+    p.add_argument("--analyze", default="", help="Analyze a SQL query")
+    p.add_argument("--generate", default="", help="Generate Python model from table")
+    p.add_argument("--root", default="", help="Project root")
+    p.add_argument("--style", default="dataclass", choices=["dataclass", "sqlalchemy"])
+    p.set_defaults(func=cmd_database)
+
+    p = subparsers.add_parser("ci", help="CI monitoring and test health")
+    p.add_argument("--run", action="store_true", help="Run tests and log results")
+    p.add_argument("--target", default="", help="Specific test target")
+    p.add_argument("--health", action="store_true", help="Show test health summary")
+    p.add_argument("--history", dest="history_view", action="store_true", help="Show CI history")
+    p.add_argument("--limit", type=int, default=20, help="Limit results")
+    p.set_defaults(func=cmd_ci)
+
+    p = subparsers.add_parser("security", aliases=["sec"], help="Security scanning")
+    p.add_argument("--root", default="", help="Project root to scan")
+    p.add_argument("--staged", action="store_true", help="Check staged files for secrets")
+    p.add_argument("--deps", action="store_true", help="Scan dependencies for vulnerabilities")
+    p.add_argument("--gitignore", action="store_true", help="Check gitignore coverage")
+    p.add_argument("--audit", action="store_true", help="Show audit log")
+    p.add_argument("--limit", type=int, default=20, help="Limit results")
+    p.set_defaults(func=cmd_security)
+
+    p = subparsers.add_parser("profile", aliases=["prof"], help="Profile and benchmark code")
+    p.add_argument("--file", default="", help="Profile a Python script")
+    p.add_argument("--slow", default="", help="Find slow functions in a file")
+    p.add_argument("--threshold", type=float, default=10.0, help="Threshold in ms for slow functions")
+    p.add_argument("--limit", type=int, default=20, help="Max hotspots to show")
+    p.set_defaults(func=cmd_profile)
+
+    p = subparsers.add_parser("doc", aliases=["docgen"], help="Generate documentation from code")
+    p.add_argument("--docstrings", default="", help="Generate docstrings for a file")
+    p.add_argument("--class-diagram", default="", help="Generate mermaid class diagram")
+    p.add_argument("--changelog", action="store_true", help="Generate changelog from git history")
+    p.add_argument("--api", default="", help="Generate API summary for a file")
+    p.add_argument("--style", default="google", choices=["google", "numpy", "terse"])
+    p.add_argument("--write", "-w", action="store_true", help="Write docstrings back to file")
+    p.add_argument("-n", type=int, default=20, help="Number of commits for changelog")
+    p.set_defaults(func=cmd_docgen)
+
+    p = subparsers.add_parser("auto-forge", aliases=["af"], help="Auto-forge pipeline")
+    p.add_argument("--health", action="store_true", help="Check project health")
+    p.add_argument("--history", action="store_true", help="Show forge history")
+    p.add_argument("--run", action="store_true", help="Actually forge (not just dry run)")
+    p.add_argument("--min-count", type=int, default=5, help="Min miss count to forge")
+    p.add_argument("--root", default="", help="Project root for health check")
+    p.set_defaults(func=cmd_auto_forge)
+
+    p = subparsers.add_parser("setup", help="First-run setup and status")
+    p.add_argument("--quickstart", action="store_true", help="Show quickstart guide")
+    p.set_defaults(func=cmd_setup)
+
+    p = subparsers.add_parser("ops", help="Proactive ops monitoring")
+    p.add_argument("--root", default=".", help="Project root to scan")
+    p.add_argument("--checks", default="", help="Comma-separated checks: deps,tests,docs,code,git")
+    p.add_argument("--history", action="store_true", help="Show ops history")
+    p.set_defaults(func=cmd_ops)
+
+    p = subparsers.add_parser("rag", help="Codebase RAG index and search")
+    p.add_argument("--index", action="store_true", help="Build/rebuild full index")
+    p.add_argument("--update", action="store_true", help="Incremental index update")
+    p.add_argument("--search", default="", help="Search the index")
+    p.add_argument("--stats", action="store_true", help="Show index stats")
+    p.add_argument("--root", default=".", help="Project root")
+    p.add_argument("-n", type=int, default=5, help="Number of results")
+    p.set_defaults(func=cmd_rag)
 
     p = subparsers.add_parser("forge", help="Scaffold ability or show misses")
     p.add_argument("name", nargs="?", default="")

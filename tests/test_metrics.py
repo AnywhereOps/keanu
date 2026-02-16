@@ -3,7 +3,7 @@
 import time
 import pytest
 
-from keanu.metrics import (
+from keanu.infra.metrics import (
     record_fire, record_ash, record_forge,
     ratio, by_ability, by_legend, forges, dashboard,
     _dashboard_message,
@@ -14,7 +14,7 @@ from keanu.metrics import (
 def isolated_metrics(tmp_path, monkeypatch):
     """point metrics to temp files for every test."""
     fake_file = tmp_path / "metrics.jsonl"
-    monkeypatch.setattr("keanu.metrics.METRICS_FILE", fake_file)
+    monkeypatch.setattr("keanu.infra.metrics.METRICS_FILE", fake_file)
     return fake_file
 
 

@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from keanu.converge.graph import DualityGraph, Duality
+from keanu.abilities.world.converge.graph import DualityGraph, Duality
 from keanu.oracle import interpret
 from keanu.hero.feel import Feel
 from keanu.hero.breathe import breathe, TaskAssessment, DualityPair

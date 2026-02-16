@@ -44,11 +44,10 @@ class HealthAbility(Ability):
 
         # module availability
         modules = {
-            "scan": "keanu.scan.helix",
-            "detect": "keanu.detect.engine",
-            "compress": "keanu.compress.dns",
-            "converge": "keanu.converge.engine",
-            "signal": "keanu.signal",
+            "scan": "keanu.abilities.seeing.scan.helix",
+            "detect": "keanu.abilities.seeing.detect.engine",
+            "compress": "keanu.abilities.world.compress.dns",
+            "converge": "keanu.abilities.world.converge.engine",
             "memory": "keanu.memory.memberberry",
             "alive": "keanu.alive",
         }

@@ -43,7 +43,7 @@ def _run_tool(cmd: str, cwd: str = ".") -> dict:
 def _detect_lint_command(cwd: str = ".") -> str:
     """auto-detect the lint command from project model."""
     try:
-        from keanu.project import detect
+        from keanu.analysis.project import detect
         model = detect(cwd)
         if model.lint_command:
             return model.lint_command
@@ -64,7 +64,7 @@ def _detect_lint_command(cwd: str = ".") -> str:
 def _detect_format_command(cwd: str = ".") -> str:
     """auto-detect the format command from project model."""
     try:
-        from keanu.project import detect
+        from keanu.analysis.project import detect
         model = detect(cwd)
         if model.format_command:
             return model.format_command

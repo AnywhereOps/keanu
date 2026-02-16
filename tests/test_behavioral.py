@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 from pathlib import Path
 
-from keanu.compress.behavioral import (
+from keanu.abilities.world.compress.behavioral import (
     FeatureExtractor, BehavioralStore,
     superlative_density, hedge_ratio, universal_quantifier_freq,
     question_frequency, exclamation_density, sentence_avg_length,
@@ -331,7 +331,7 @@ class TestBehavioralStore:
 class TestBakeIntegration:
     def test_bake_behavioral_detectors(self, tmp_path, monkeypatch):
         """Test that bake_behavioral_detectors parses and stores examples."""
-        from keanu.scan.bake import parse_reference_file, DEFAULT_EXAMPLES
+        from keanu.abilities.seeing.scan.bake import parse_reference_file, DEFAULT_EXAMPLES
 
         if not Path(DEFAULT_EXAMPLES).exists():
             pytest.skip("reference-examples.md not found")
@@ -357,7 +357,7 @@ class TestBakeIntegration:
 
     def test_bake_behavioral_helix(self, tmp_path):
         """Test that bake_behavioral_helix parses and stores lens examples."""
-        from keanu.scan.bake import parse_lens_file, DEFAULT_LENSES
+        from keanu.abilities.seeing.scan.bake import parse_lens_file, DEFAULT_LENSES
 
         if not Path(DEFAULT_LENSES).exists():
             pytest.skip("lens-examples-rgb.md not found")
@@ -376,8 +376,8 @@ class TestBakeIntegration:
 class TestHelixBehavioral:
     def test_helix_scan_behavioral(self, tmp_path):
         """Test helix_scan with behavioral backend."""
-        from keanu.scan.bake import parse_lens_file, DEFAULT_LENSES
-        from keanu.scan.helix import helix_scan
+        from keanu.abilities.seeing.scan.bake import parse_lens_file, DEFAULT_LENSES
+        from keanu.abilities.seeing.scan.helix import helix_scan
 
         if not Path(DEFAULT_LENSES).exists():
             pytest.skip("lens-examples-rgb.md not found")
@@ -392,7 +392,7 @@ class TestHelixBehavioral:
         store.bake_collection("silverado_rgb", bake_examples)
 
         # monkey-patch the wellspring tap to return our test store
-        import keanu.scan.helix as helix_mod
+        import keanu.abilities.seeing.scan.helix as helix_mod
         import keanu.wellspring as wellspring_mod
         original_tap = wellspring_mod.tap
         wellspring_mod.tap = lambda collection: store
@@ -418,8 +418,8 @@ class TestHelixBehavioral:
 class TestDetectBehavioral:
     def test_scan_behavioral(self, tmp_path):
         """Test detect scan with behavioral backend."""
-        from keanu.scan.bake import parse_reference_file, DEFAULT_EXAMPLES
-        from keanu.detect.engine import scan as detect_scan
+        from keanu.abilities.seeing.scan.bake import parse_reference_file, DEFAULT_EXAMPLES
+        from keanu.abilities.seeing.detect.engine import scan as detect_scan
 
         if not Path(DEFAULT_EXAMPLES).exists():
             pytest.skip("reference-examples.md not found")
@@ -432,7 +432,7 @@ class TestDetectBehavioral:
         ]
         store.bake_collection("silverado", bake_examples)
 
-        from keanu.detect import engine as engine_mod
+        from keanu.abilities.seeing.detect import engine as engine_mod
         import keanu.wellspring as wellspring_mod
         original_tap = wellspring_mod.tap
         wellspring_mod.tap = lambda collection: store
@@ -456,8 +456,8 @@ class TestDetectBehavioral:
 class TestVectorsSemantic:
     def test_embed_semantic_uses_behavioral(self):
         """Test that VectorStore.embed_semantic uses behavioral features."""
-        from keanu.compress.vectors import VectorStore
-        from keanu.compress.codec import Seed
+        from keanu.abilities.world.compress.vectors import VectorStore
+        from keanu.abilities.world.compress.codec import Seed
 
         store = VectorStore(dim=20)
         seed = Seed(pattern_id="test", content_hash="abc123", anchors={})
@@ -468,8 +468,8 @@ class TestVectorsSemantic:
 
     def test_semantic_different_texts_different_vectors(self):
         """Different content produces different semantic vectors."""
-        from keanu.compress.vectors import VectorStore
-        from keanu.compress.codec import Seed
+        from keanu.abilities.world.compress.vectors import VectorStore
+        from keanu.abilities.world.compress.codec import Seed
 
         store = VectorStore(dim=20)
         s1 = Seed(pattern_id="test", content_hash="aaa", anchors={})

@@ -427,4 +427,43 @@
 - [x] Phase 3: Session caching (cache.py) - FileCache, ASTCache, SymbolCache
 - [x] Phase 5: Task decomposition (decompose.py) - heuristic + dream-powered
 - [x] Phase 1: Multi-file atomic patch ability (patch.py) with rollback
-- [x] 795 tests passing
+- [x] Phase 1: Web lookup ability (lookup.py) - fetch docs, search APIs, session cache
+- [x] Phase 4: Refactoring abilities (refactor.py) - AST-aware rename, extract function, move symbol
+- [x] Phase 4: Code generation (codegen.py) - scaffold templates, test gen from signatures, find stubs
+- [x] Phase 5: Learning from corrections (corrections.py) - pattern detection, style preferences
+- [x] Phase 5: Proactive suggestions (suggestions.py) - unused imports, dead code, complexity, style
+- [x] Infra: Oracle upgrades (oracle.py) - token estimation, model fallback, cost tracking, response cache
+- [x] Infra: Ability protocol upgrade (ability_schema.py) - schemas, validation, chains with rollback
+- [x] Infra: MCP server (mcp_server.py) - JSON-RPC/stdio, expose abilities as tools, resources
+- [x] Project context injected into agent loop (do.py _project_context)
+- [x] Style corrections injected into system prompts
+- [x] CLI: suggest, gen, mcp, corrections commands
+- [x] Phase 4: Documentation generation (docgen.py) - docstrings, mermaid diagrams, changelog, API summary
+- [x] Phase 6: Auto-forge pipeline (auto_forge.py) - miss analysis, auto-scaffold, project health
+- [x] Infra: Security module (security.py) - secret detection, dep scanning, audit logging
+- [x] Phase 4: Profile + benchmark (profile.py) - cProfile hotspots, benchmarking, memory profiling
+- [x] Phase 3: Streaming support (oracle.py) - stream_oracle, collect_stream, cloud+local SSE
+- [x] Phase 4: Database awareness (database.py) - SQL parsing, ORM detection, query analysis, model gen
+- [x] Phase 5: CI monitoring (ci.py) - test runs, flaky detection, bisect, health tracking
+- [x] Infra: REPL upgrades (completer.py) - tab completion, history, search, cost display
+- [x] CLI: doc, auto-forge, security, profile, db, ci commands
+- [x] Infra: Plugin system (plugins.py) - entry point discovery, hooks, custom legends, config
+- [x] Phase 5: Multi-agent coordination (coordinate.py) - pipelines, parallel execution, context sharing
+- [x] Infra: Telemetry (telemetry.py) - spans, traces, analysis, JSONL persistence
+- [x] Phase 3: Parallel file ops (parallel.py) - read/write/run parallel, batch AST, file watch
+- [x] Infra: Packaging (packaging.py) - version management, validation, install scripts, build check
+- [x] Infra: Forge upgrades (forge.py) - post-forge vector baking, registry, import/export, versioning
+- [x] Cleanup: First-run experience (firstrun.py) - dependency checks, setup wizard, quickstart guide
+- [x] Phase 5: Proactive ops (ops.py) - dep staleness, test health, doc drift, code quality, git hygiene
+- [x] Phase 3: Codebase RAG (rag.py) - file chunking, incremental indexing, hybrid search, JSON fallback
+- [x] Infra: REPL sessions (sessions.py) - save/restore, auto-save, list, delete
+- [x] Phase 4: Multi-language AST (polyglot.py) - JS/TS/Go/Rust/Ruby/Java/C symbol finding, imports
+- [x] Phase 4: Database migrations (migrate.py) - SQL generation, schema diff, migration files, system detection
+- [x] CLI: setup, ops, rag commands
+- [x] Infra: Changelog generation (changelog.py) - conventional commits, grouped by type, release notes
+- [x] Phase 4: Project scaffolding (scaffold.py) - package, CLI, API, library templates
+- [x] Infra: Config management (config.py) - layered config, global/project/env overrides
+- [x] Phase 4: Diff analysis (diff.py) - parse unified diffs, stats, move detection, classification
+- [x] Infra: Environment detection (environ.py) - virtualenvs, docker, CI, tools, project root
+- [x] Phase 4: API client generation (apigen.py) - OpenAPI parsing, typed Python client gen, model gen
+- [x] 1515 tests passing

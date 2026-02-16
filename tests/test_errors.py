@@ -2,7 +2,7 @@
 
 import pytest
 
-from keanu.errors import parse, ParsedError
+from keanu.analysis.errors import parse, ParsedError
 
 
 class TestPythonTraceback:

@@ -19,7 +19,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional
 from enum import Enum
 
-from keanu.compress.dns import short_hash
+from keanu.abilities.world.compress.dns import short_hash
 from keanu.io import append_jsonl
 
 

@@ -15,7 +15,7 @@ class DetectAbility(Ability):
         p = prompt.lower()
 
         # check for specific pattern names
-        from keanu.detect import DETECTORS
+        from keanu.abilities.seeing.detect import DETECTORS
         if any(d in p for d in DETECTORS):
             return True, 0.9
 
@@ -25,8 +25,8 @@ class DetectAbility(Ability):
         return False, 0.0
 
     def execute(self, prompt: str, context: dict = None) -> dict:
-        from keanu.detect import DETECTORS
-        from keanu.detect.engine import scan
+        from keanu.abilities.seeing.detect import DETECTORS
+        from keanu.abilities.seeing.detect.engine import scan
 
         p = prompt.lower()
 

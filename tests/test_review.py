@@ -1,6 +1,6 @@
 """tests for code review."""
 
-from keanu.review import (
+from keanu.analysis.review import (
     review_diff, review_file, ReviewResult, Issue,
     _parse_diff, _check_line,
 )

@@ -236,7 +236,7 @@ class TestDisagreement:
 
     def test_tracker_record(self, tmp_path):
         tracker = DisagreementTracker(store=None)
-        with patch("keanu.detect.engine.detect_emotion", return_value=[]), \
+        with patch("keanu.abilities.seeing.detect.engine.detect_emotion", return_value=[]), \
              patch("keanu.log.remember") as mock_remember:
             d = tracker.record("regex vs vectors", "regex is fine", "vectors for consistency")
         assert d.topic == "regex vs vectors"
@@ -248,7 +248,7 @@ class TestDisagreement:
 
     def test_tracker_resolve(self, tmp_path):
         tracker = DisagreementTracker(store=None)
-        with patch("keanu.detect.engine.detect_emotion", return_value=[]), \
+        with patch("keanu.abilities.seeing.detect.engine.detect_emotion", return_value=[]), \
              patch("keanu.log.remember") as mock_remember, \
              patch("keanu.log.recall", return_value=[{"content": "test"}]):
             d = tracker.record("test topic", "human says", "ai says")

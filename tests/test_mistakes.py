@@ -4,7 +4,7 @@ import time
 import pytest
 from pathlib import Path
 
-from keanu.mistakes import (
+from keanu.infra.mistakes import (
     log_mistake, check_before, get_patterns, get_mistakes,
     clear_stale, stats, _classify, _summarize_args, _args_overlap,
     DECAY_DAYS,
@@ -15,7 +15,7 @@ from keanu.mistakes import (
 def isolated_mistakes(tmp_path, monkeypatch):
     """point mistakes to a temp file for every test."""
     fake_file = tmp_path / "mistakes.jsonl"
-    monkeypatch.setattr("keanu.mistakes.MISTAKES_FILE", fake_file)
+    monkeypatch.setattr("keanu.infra.mistakes.MISTAKES_FILE", fake_file)
     return fake_file
 
 

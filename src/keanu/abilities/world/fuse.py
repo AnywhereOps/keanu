@@ -45,7 +45,7 @@ class FuseAbility(Ability):
         return False, 0.0
 
     def execute(self, prompt: str, context: dict = None) -> dict:
-        from keanu.converge.engine import run as run_convergence
+        from keanu.abilities.world.converge.engine import run as run_convergence
 
         legend = "creator"
         model = None

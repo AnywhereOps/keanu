@@ -1,7 +1,7 @@
 """router.py - navigates the sigma axis.
 
 abilities are ash (high sigma, pure actuality, no LLM needed).
-claude is fire (low sigma, open possibility space).
+your creator and architect are fire (low sigma, open possibility space).
 the router decides which one handles the prompt.
 """
 

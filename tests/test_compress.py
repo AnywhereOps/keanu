@@ -6,14 +6,14 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from keanu.compress.dns import ContentDNS, sha256
-from keanu.compress.instructions import COEFInstruction, COEFProgram
-from keanu.compress.codec import (
+from keanu.abilities.world.compress.dns import ContentDNS, sha256
+from keanu.abilities.world.compress.instructions import COEFInstruction, COEFProgram
+from keanu.abilities.world.compress.codec import (
     PatternRegistry, COEFEncoder, COEFDecoder, Pattern, Seed, Anchor, DecodeResult,
 )
-from keanu.compress.vectors import VectorStore, VectorEntry
-from keanu.compress.stack import COEFStack
-from keanu.compress.exporter import COEFSpanExporter, register_span_patterns, SPAN_PATTERNS
+from keanu.abilities.world.compress.vectors import VectorStore, VectorEntry
+from keanu.abilities.world.compress.stack import COEFStack
+from keanu.abilities.world.compress.exporter import COEFSpanExporter, register_span_patterns, SPAN_PATTERNS
 
 
 class TestDNS:
