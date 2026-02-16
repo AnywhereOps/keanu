@@ -1,57 +1,48 @@
 """repl.py - interactive terminal for keanu.
 
-The main way humans interact with keanu. Type a task, the agent loop runs,
-you see the result. Slash commands for switching legends, models, listing
-abilities.
+type a task, the agent loop runs, you see the result.
+/craft and /prove switch modes. /help for commands.
 
 in the world: the front door. type a task, get it done.
 """
 
-import sys
-
 from rich.console import Console
 from rich.markdown import Markdown
-from rich.panel import Panel
 from rich.text import Text
 
 from keanu.abilities import list_abilities
-from keanu.hero.do import AgentLoop, Step
+from keanu.hero.do import AgentLoop, Step, DO_CONFIG, CRAFT_CONFIG, PROVE_CONFIG
 from keanu.log import info
 
 console = Console()
 
-def _banner():
-    """build the banner. green block letters."""
-    lines = [
-        " ██╗  ██╗███████╗ █████╗ ███╗   ██╗██╗   ██╗",
-        " ██║ ██╔╝██╔════╝██╔══██╗████╗  ██║██║   ██║",
-        " █████╔╝ █████╗  ███████║██╔██╗ ██║██║   ██║",
-        " ██╔═██╗ ██╔══╝  ██╔══██║██║╚██╗██║██║   ██║",
-        " ██║  ██╗███████╗██║  ██║██║ ╚████║╚██████╔╝",
-        " ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝",
-    ]
-    result = [Text()]
-    for line in lines:
-        result.append(Text(line, style="bold green"))
-    result.append(Text())
-    result.append(Text("  type a task, or /help", style="dim"))
-    result.append(Text())
-    return result
-
-
-BANNER = _banner()
+BANNER = [
+    Text(),
+    Text(" ██╗  ██╗███████╗ █████╗ ███╗   ██╗██╗   ██╗", style="bold green"),
+    Text(" ██║ ██╔╝██╔════╝██╔══██╗████╗  ██║██║   ██║", style="bold green"),
+    Text(" █████╔╝ █████╗  ███████║██╔██╗ ██║██║   ██║", style="bold green"),
+    Text(" ██╔═██╗ ██╔══╝  ██╔══██║██║╚██╗██║██║   ██║", style="bold green"),
+    Text(" ██║  ██╗███████╗██║  ██║██║ ╚████║╚██████╔╝", style="bold green"),
+    Text(" ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝", style="bold green"),
+    Text(),
+    Text("  type a task, or /help", style="dim"),
+    Text(),
+]
 
 HELP_TEXT = """
   [bold]/help[/bold]              show this
   [bold]/abilities[/bold]         list registered abilities
+  [bold]/mode[/bold] [dim][do|craft|prove][/dim]  switch agent mode
   [bold]/model[/bold] [dim][name][/dim]     show or switch model
-  [bold]/legend[/bold] [dim][name][/dim]    show or switch legend (creator|friend|architect)
+  [bold]/legend[/bold] [dim][name][/dim]    show or switch legend
   [bold]/quit[/bold]              exit
 """
 
+MODES = {"do": DO_CONFIG, "craft": CRAFT_CONFIG, "prove": PROVE_CONFIG}
+
 
 def _print_step(step: Step):
-    """Print a single agent step with color."""
+    """print a single agent step with color."""
     if step.action == "done":
         return
     if step.action == "think":
@@ -62,12 +53,29 @@ def _print_step(step: Step):
         console.print(f"  [red]{step.action} FAILED[/red] [dim]{step.result[:80]}[/dim]")
 
 
+def _print_feel(feel_stats):
+    """print feel stats with rich styling."""
+    checks = feel_stats.get("total_checks", 0)
+    breaths = feel_stats.get("breaths_given", 0)
+    hits = feel_stats.get("ability_hits", 0)
+    if checks or hits:
+        parts = []
+        if checks:
+            parts.append(f"{checks} checks")
+        if breaths:
+            parts.append(f"{breaths} breaths")
+        if hits:
+            parts.append(f"{hits} abilities")
+        console.print(f"  [dim]{', '.join(parts)}[/dim]")
+
+
 class Repl:
     """Interactive keanu terminal."""
 
     def __init__(self, legend="creator", model=None):
         self.legend = legend
         self.model = model
+        self.config = DO_CONFIG
         self.store = None
         try:
             from keanu.memory import MemberberryStore
@@ -76,57 +84,56 @@ class Repl:
             pass
 
     def run(self):
-        """Main REPL loop."""
         for line in BANNER:
             console.print(line)
 
         while True:
             try:
-                user_input = console.input("[green]> [/green]").strip()
+                prompt = f"[green]{self.config.name}> [/green]" if self.config != DO_CONFIG else "[green]> [/green]"
+                user_input = console.input(prompt).strip()
             except (EOFError, KeyboardInterrupt):
-                self._flush_ledger()
-                console.print("\n  [dim]bye[/dim]")
+                self._quit()
                 break
-
             if not user_input:
                 continue
-
             if user_input.startswith("/"):
-                if self._handle_slash(user_input):
+                if self._slash(user_input):
                     break
                 continue
-
             self._run_task(user_input)
 
-    def _handle_slash(self, cmd: str) -> bool:
-        """Handle slash command. Returns True if should quit."""
+    def _slash(self, cmd: str) -> bool:
+        """handle slash command. returns True to quit."""
         parts = cmd.split(None, 1)
         command = parts[0].lower()
         arg = parts[1].strip() if len(parts) > 1 else ""
 
         if command in ("/quit", "/q", "/exit"):
-            self._flush_ledger()
-            console.print("  [dim]bye[/dim]")
+            self._quit()
             return True
-
         elif command == "/help":
             console.print(HELP_TEXT)
-
         elif command == "/abilities":
-            abilities = list_abilities()
-            console.print(f"\n  [bold]{len(abilities)} abilities:[/bold]\n")
-            for ab in abilities:
-                kw = ", ".join(ab["keywords"][:4])
+            for ab in list_abilities():
                 console.print(f"  [green]{ab['name']}[/green]  {ab['description']}")
-                console.print(f"    [dim]{kw}[/dim]")
-
+        elif command == "/mode":
+            if arg in MODES:
+                self.config = MODES[arg]
+                console.print(f"  mode -> [green]{arg}[/green]")
+            elif arg:
+                console.print(f"  [red]unknown mode.[/red] use: {', '.join(MODES)}")
+            else:
+                console.print(f"  mode: [green]{self.config.name}[/green]")
+        elif command in ("/craft", "/prove", "/do"):
+            mode = command[1:]
+            self.config = MODES[mode]
+            console.print(f"  mode -> [green]{mode}[/green]")
         elif command == "/model":
             if arg:
                 self.model = arg
                 console.print(f"  model -> [green]{arg}[/green]")
             else:
                 console.print(f"  model: [green]{self.model or 'default'}[/green]")
-
         elif command == "/legend":
             if arg:
                 from keanu.legends import list_legends
@@ -138,70 +145,45 @@ class Repl:
                     console.print(f"  [red]unknown legend[/red] ({' | '.join(available)})")
             else:
                 console.print(f"  legend: [green]{self.legend}[/green]")
-
         else:
-            console.print(f"  [red]unknown command:[/red] {command}")
-            console.print("  try /help")
-
+            console.print(f"  [red]unknown:[/red] {command}. try /help")
         return False
 
     def _run_task(self, task: str):
-        """Run agent loop on a task with live output."""
+        """run agent loop on a task."""
         info("repl", f"task: {task[:80]}")
-
-        loop = AgentLoop(store=self.store, max_turns=25)
+        loop = AgentLoop(self.config, store=self.store)
 
         with console.status("[green]thinking...", spinner="dots"):
             result = loop.run(task, legend=self.legend, model=self.model)
 
-        # print steps
         for step in result.steps:
             _print_step(step)
 
-        # print result
         console.print()
         if result.ok:
             if result.answer:
                 try:
-                    md = Markdown(result.answer)
-                    console.print(md)
+                    console.print(Markdown(result.answer))
                 except Exception:
                     console.print(f"  {result.answer}")
         elif result.status == "paused":
             console.print(f"  [yellow]paused:[/yellow] {result.error}")
         elif result.status == "max_turns":
-            console.print(f"  [yellow]hit turn limit (25)[/yellow]")
+            console.print(f"  [yellow]hit turn limit[/yellow]")
             if result.steps:
-                last = result.steps[-1]
-                console.print(f"  last: {last.action} -> {last.result[:120]}")
+                console.print(f"  last: {result.steps[-1].action} -> {result.steps[-1].result[:120]}")
         else:
             console.print(f"  [red]error:[/red] {result.error}")
 
-        # feel stats
-        fs = result.feel_stats
-        checks = fs.get("total_checks", 0)
-        breaths = fs.get("breaths_given", 0)
-        ability_hits = fs.get("ability_hits", 0)
-        if checks > 0 or ability_hits > 0:
-            parts = []
-            if checks > 0:
-                parts.append(f"{checks} checks")
-            if breaths > 0:
-                parts.append(f"{breaths} breaths")
-            if ability_hits > 0:
-                parts.append(f"{ability_hits} abilities")
-            console.print(f"  [dim]{', '.join(parts)}[/dim]")
-
+        _print_feel(result.feel_stats)
         console.print()
 
-
-    def _flush_ledger(self):
-        """commit any buffered log entries before exit."""
+    def _quit(self):
         from keanu.log import flush_sink
         flush_sink()
+        console.print("\n  [dim]bye[/dim]")
 
 
 def run_repl(legend="creator", model=None):
-    """Entry point for the REPL."""
-    repl = Repl(legend=legend, model=model)
-    repl.run()
+    Repl(legend=legend, model=model).run()

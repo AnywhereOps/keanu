@@ -34,23 +34,23 @@ def test_slash_quit():
     """Slash quit returns True (should exit)."""
     from keanu.hero.repl import Repl
     repl = Repl()
-    assert repl._handle_slash("/quit") is True
-    assert repl._handle_slash("/q") is True
-    assert repl._handle_slash("/exit") is True
+    assert repl._slash("/quit") is True
+    assert repl._slash("/q") is True
+    assert repl._slash("/exit") is True
 
 
 def test_slash_help():
     """Slash help returns False (don't exit)."""
     from keanu.hero.repl import Repl
     repl = Repl()
-    assert repl._handle_slash("/help") is False
+    assert repl._slash("/help") is False
 
 
 def test_slash_model_show():
     """Slash model with no arg shows current model."""
     from keanu.hero.repl import Repl
     repl = Repl(model="test-model")
-    assert repl._handle_slash("/model") is False
+    assert repl._slash("/model") is False
     assert repl.model == "test-model"
 
 
@@ -58,7 +58,7 @@ def test_slash_model_set():
     """Slash model with arg changes model."""
     from keanu.hero.repl import Repl
     repl = Repl()
-    repl._handle_slash("/model gpt-4")
+    repl._slash("/model gpt-4")
     assert repl.model == "gpt-4"
 
 
@@ -67,7 +67,7 @@ def test_slash_legend_set():
     /legend architect tells the oracle to answer as the architect."""
     from keanu.hero.repl import Repl
     repl = Repl(legend="creator")
-    repl._handle_slash("/legend architect")
+    repl._slash("/legend architect")
     assert repl.legend == "architect"
 
 
@@ -76,7 +76,7 @@ def test_slash_legend_invalid():
     Only registered legends (creator, friend, architect) are valid."""
     from keanu.hero.repl import Repl
     repl = Repl(legend="creator")
-    repl._handle_slash("/legend invalid")
+    repl._slash("/legend invalid")
     assert repl.legend == "creator"
 
 
@@ -84,11 +84,11 @@ def test_slash_unknown():
     """Unknown slash command returns False."""
     from keanu.hero.repl import Repl
     repl = Repl()
-    assert repl._handle_slash("/unknown") is False
+    assert repl._slash("/unknown") is False
 
 
 def test_slash_abilities():
     """Slash abilities returns False (lists abilities)."""
     from keanu.hero.repl import Repl
     repl = Repl()
-    assert repl._handle_slash("/abilities") is False
+    assert repl._slash("/abilities") is False
