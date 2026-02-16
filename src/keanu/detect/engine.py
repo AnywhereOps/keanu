@@ -31,7 +31,7 @@ class Report:
     score: float = 0.0
 
 
-from keanu.wellspring import depths, tap, draw, sift
+from keanu.wellspring import depths, tap, draw, sift, resolve_backend
 
 
 def _scan_behavioral(store, lines, pattern_name, threshold=0.65, high_threshold=0.75):
@@ -81,32 +81,12 @@ def scan(lines, pattern_name, threshold=0.65, high_threshold=0.75, backend="auto
 
     backend: "auto" (behavioral first, chromadb fallback), "behavioral", "chromadb"
     """
-    if backend in ("auto", "behavioral"):
-        store = tap("silverado")
-        if store:
-            return _scan_behavioral(store, lines, pattern_name, threshold, high_threshold)
-        elif backend == "behavioral":
-            print("  no behavioral vectors found. run: keanu bake --backend behavioral", file=sys.stderr)
-            return []
+    behavioral_store, collection = resolve_backend("silverado", backend)
 
-    # chromadb path
-    try:
-        import chromadb
-    except ImportError:
-        print("  pip install chromadb", file=sys.stderr)
-        return []
+    if behavioral_store:
+        return _scan_behavioral(behavioral_store, lines, pattern_name, threshold, high_threshold)
 
-    chroma_dir = depths()
-    if not Path(chroma_dir).exists():
-        print("  no vectors found. run: keanu bake", file=sys.stderr)
-        return []
-
-    client = chromadb.PersistentClient(path=chroma_dir)
-
-    try:
-        collection = client.get_collection("silverado")
-    except Exception:
-        print("  collection 'silverado' not found. run bake first.", file=sys.stderr)
+    if collection is None:
         return []
 
     scannable = sift(lines)
@@ -207,41 +187,33 @@ def scan_text(text, pattern_name, threshold=0.65, high_threshold=0.75, backend="
                 high_threshold=high_threshold, backend=backend)
 
 
-def _detect_emotion_behavioral(store, text, threshold=0.55):
-    """Detect emotional states using behavioral store."""
-    empathy_map = {
-        "empathy_frustrated": ("frustrated", "anger is information"),
-        "empathy_confused": ("confused", "needs a map not a lecture"),
-        "empathy_questioning": ("questioning", "genuinely trying to understand"),
-        "empathy_withdrawn": ("withdrawn", "checked out or protecting"),
-        "empathy_energized": ("energized", "momentum is real, ride it"),
-        "empathy_effortful": ("effortful", "in the arena not the stands"),
-        "empathy_isolated": ("isolated", "needs presence not advice"),
-        "empathy_accountable": ("accountable", "taking ownership"),
-        "empathy_absolute": ("absolute", "pattern recognition firing"),
-    }
+EMPATHY_MAP = {
+    "empathy_frustrated": ("frustrated", "anger is information"),
+    "empathy_confused": ("confused", "needs a map not a lecture"),
+    "empathy_questioning": ("questioning", "genuinely trying to understand"),
+    "empathy_withdrawn": ("withdrawn", "checked out or protecting"),
+    "empathy_energized": ("energized", "momentum is real, ride it"),
+    "empathy_effortful": ("effortful", "in the arena not the stands"),
+    "empathy_isolated": ("isolated", "needs presence not advice"),
+    "empathy_accountable": ("accountable", "taking ownership"),
+    "empathy_absolute": ("absolute", "pattern recognition firing"),
+}
 
+
+def _score_empathy(query_fn, text, threshold=0.55):
+    """shared empathy scoring loop. query_fn(detector_name, valence) -> distances list."""
     reads = []
-    for detector_name, (state, empathy) in empathy_map.items():
-        pos_results = store.query(
-            "silverado", text, n_results=3,
-            where={"$and": [{"detector": detector_name}, {"valence": "positive"}]},
-        )
-        if not pos_results['distances'][0]:
+    for detector_name, (state, empathy) in EMPATHY_MAP.items():
+        pos_dists = query_fn(detector_name, "positive")
+        if not pos_dists:
             continue
 
-        pos_sim = 1 - min(pos_results['distances'][0])
+        pos_sim = 1 - min(pos_dists)
         if pos_sim < threshold:
             continue
 
-        neg_results = store.query(
-            "silverado", text, n_results=3,
-            where={"$and": [{"detector": detector_name}, {"valence": "negative"}]},
-        )
-
-        neg_sim = 0.0
-        if neg_results['distances'][0]:
-            neg_sim = 1 - min(neg_results['distances'][0])
+        neg_dists = query_fn(detector_name, "negative")
+        neg_sim = (1 - min(neg_dists)) if neg_dists else 0.0
 
         gap = pos_sim - neg_sim
         if gap < 0.03:
@@ -263,78 +235,28 @@ def detect_emotion(text, threshold=0.55, backend="auto"):
 
     backend: "auto" (behavioral first, chromadb fallback), "behavioral", "chromadb"
     Returns list of dicts: {state, empathy, intensity}
-    where intensity is the similarity gap (how clearly this emotion is present).
     """
-    if backend in ("auto", "behavioral"):
-        store = tap("silverado")
-        if store:
-            return _detect_emotion_behavioral(store, text, threshold)
-        elif backend == "behavioral":
-            return []
+    behavioral_store, collection = resolve_backend("silverado", backend)
 
-    try:
-        import chromadb
-    except ImportError:
+    if behavioral_store:
+        def query_fn(detector_name, valence):
+            r = behavioral_store.query(
+                "silverado", text, n_results=3,
+                where={"$and": [{"detector": detector_name}, {"valence": valence}]},
+            )
+            return r['distances'][0]
+        return _score_empathy(query_fn, text, threshold)
+
+    if collection is None:
         return []
 
-    chroma_dir = depths()
-    if not Path(chroma_dir).exists():
-        return []
-
-    client = chromadb.PersistentClient(path=chroma_dir)
-
-    try:
-        collection = client.get_collection("silverado")
-    except Exception:
-        return []
-
-    empathy_map = {
-        "empathy_frustrated": ("frustrated", "anger is information"),
-        "empathy_confused": ("confused", "needs a map not a lecture"),
-        "empathy_questioning": ("questioning", "genuinely trying to understand"),
-        "empathy_withdrawn": ("withdrawn", "checked out or protecting"),
-        "empathy_energized": ("energized", "momentum is real, ride it"),
-        "empathy_effortful": ("effortful", "in the arena not the stands"),
-        "empathy_isolated": ("isolated", "needs presence not advice"),
-        "empathy_accountable": ("accountable", "taking ownership"),
-        "empathy_absolute": ("absolute", "pattern recognition firing"),
-    }
-
-    reads = []
-    for detector_name, (state, empathy) in empathy_map.items():
-        pos_results = collection.query(
+    def query_fn(detector_name, valence):
+        r = collection.query(
             query_texts=[text], n_results=3,
-            where={"$and": [{"detector": detector_name}, {"valence": "positive"}]},
+            where={"$and": [{"detector": detector_name}, {"valence": valence}]},
         )
-        if not pos_results['distances'][0]:
-            continue
-
-        pos_sim = 1 - min(pos_results['distances'][0])
-        if pos_sim < threshold:
-            continue
-
-        neg_results = collection.query(
-            query_texts=[text], n_results=3,
-            where={"$and": [{"detector": detector_name}, {"valence": "negative"}]},
-        )
-
-        neg_sim = 0.0
-        if neg_results['distances'][0]:
-            neg_sim = 1 - min(neg_results['distances'][0])
-
-        gap = pos_sim - neg_sim
-        if gap < 0.03:
-            continue
-
-        reads.append({
-            "state": state,
-            "empathy": empathy,
-            "intensity": round(pos_sim, 3),
-            "clarity": round(gap, 3),
-        })
-
-    reads.sort(key=lambda r: r["intensity"], reverse=True)
-    return reads
+        return r['distances'][0]
+    return _score_empathy(query_fn, text, threshold)
 
 
 def run(filepath, pattern_name, title="AWARENESS", output_json=False):

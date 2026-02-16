@@ -77,6 +77,31 @@ def draw(collection):
         return None
 
 
+def resolve_backend(collection_name, backend="auto"):
+    """resolve vector backend for a collection. returns (behavioral_store, chromadb_collection).
+
+    tries behavioral first, falls back to chromadb. exactly one of the two
+    will be non-None on success. returns (None, None) if nothing works.
+
+    in the world: find the vein before you draw.
+    """
+    behavioral_store = None
+    chromadb_collection = None
+
+    if backend in ("auto", "behavioral"):
+        behavioral_store = tap(collection_name)
+        if behavioral_store:
+            return behavioral_store, None
+        elif backend == "behavioral":
+            print(f"  no behavioral vectors found for '{collection_name}'. "
+                  "run: keanu bake --backend behavioral", file=sys.stderr)
+            return None, None
+
+    # chromadb fallback
+    chromadb_collection = draw(collection_name)
+    return None, chromadb_collection
+
+
 def sift(lines):
     """Takes a list of text lines and returns only the ones worth scanning.
     Skips lines that are too short (under 20 chars), code (imports, defs,

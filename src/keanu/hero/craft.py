@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from keanu.abilities import _REGISTRY, list_abilities
 from keanu.oracle import call_oracle, try_interpret
 from keanu.hero.feel import Feel
+from keanu.hero.types import Step as CraftStep
 from keanu.log import info, warn, debug
 
 
@@ -75,19 +76,6 @@ class CraftResult:
     @property
     def ok(self) -> bool:
         return self.status == "done"
-
-
-@dataclass
-class CraftStep:
-    """one strike of the hammer.
-
-    in the world: one heartbeat of the craft loop.
-    """
-    turn: int
-    action: str
-    input_summary: str
-    result: str
-    ok: bool = True
 
 
 HANDS = {"read", "write", "edit", "search", "ls", "run"}

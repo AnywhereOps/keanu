@@ -21,23 +21,12 @@ from keanu.hero.feel import Feel, FeelResult
 from keanu.log import info, warn, debug
 
 
+from keanu.hero.types import Step
+
+
 # ============================================================
 # DATA
 # ============================================================
-
-@dataclass
-class Step:
-    """One step in the loop. Records what happened on a single turn:
-    which ability was called, what it was given, what came back.
-
-    in the world: one heartbeat of the loop.
-    """
-    turn: int
-    action: str          # ability name or "think" or "done"
-    input_summary: str   # what was asked
-    result: str          # what came back
-    ok: bool = True
-
 
 @dataclass
 class LoopResult:

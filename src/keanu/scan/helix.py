@@ -25,7 +25,7 @@ from pathlib import Path
 PRIMARIES = ("red", "yellow", "blue")
 
 
-from keanu.wellspring import depths, tap, sift
+from keanu.wellspring import depths, tap, sift, resolve_backend
 
 
 # ── dataclasses ──────────────────────────────────────────────
@@ -153,38 +153,11 @@ def helix_scan(lines, threshold=0.45,
 
     backend: "auto" (behavioral first, chromadb fallback), "behavioral", "chromadb"
     """
-    behavioral_store = None
-    collection = None
-
-    # resolve backend
-    if backend in ("auto", "behavioral"):
-        behavioral_store = tap("silverado_rgb")
-        if behavioral_store:
-            print("  [behavioral] using transparent feature vectors", file=sys.stderr)
-        elif backend == "behavioral":
-            print("  no behavioral vectors found. run: keanu bake --backend behavioral", file=sys.stderr)
-            return None
-
-    if behavioral_store is None:
-        # fall back to chromadb
-        try:
-            import chromadb
-        except ImportError:
-            print("  pip install chromadb", file=sys.stderr)
-            return None
-
-        chroma_dir = depths()
-        if not Path(chroma_dir).exists():
-            print("  no vectors found. run: keanu bake", file=sys.stderr)
-            return None
-
-        client = chromadb.PersistentClient(path=chroma_dir)
-
-        try:
-            collection = client.get_collection("silverado_rgb")
-        except Exception:
-            print("  collection 'silverado_rgb' not found. run: keanu bake", file=sys.stderr)
-            return None
+    behavioral_store, collection = resolve_backend("silverado_rgb", backend)
+    if behavioral_store is None and collection is None:
+        return None
+    if behavioral_store:
+        print("  [behavioral] using transparent feature vectors", file=sys.stderr)
 
     # load calibration corrections (only for chromadb)
     accels = {"red": 1.0, "yellow": 1.0, "blue": 1.0}

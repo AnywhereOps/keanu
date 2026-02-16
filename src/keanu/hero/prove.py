@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from keanu.abilities import _REGISTRY, list_abilities
 from keanu.oracle import call_oracle, try_interpret
 from keanu.hero.feel import Feel
+from keanu.hero.types import Step as ProveStep
 from keanu.log import info, warn, debug
 
 
@@ -81,19 +82,6 @@ class ProveResult:
     @property
     def ok(self) -> bool:
         return bool(self.verdict) and not self.error
-
-
-@dataclass
-class ProveStep:
-    """one piece of evidence gathered.
-
-    in the world: one sample from the crucible.
-    """
-    turn: int
-    action: str
-    input_summary: str
-    result: str
-    ok: bool = True
 
 
 EVIDENCE_TOOLS = {"read", "search", "ls", "run", "recall"}
