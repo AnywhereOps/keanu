@@ -1,0 +1,16 @@
+{
+  "name": "@keanu/cli",
+  "version": "0.0.1",
+  "type": "module",
+  "bin": {
+    "keanu": "src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "start": "bun run src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.9.0"
+  }
+}

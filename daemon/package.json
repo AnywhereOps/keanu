@@ -1,0 +1,20 @@
+{
+  "name": "@keanu/daemon",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@huggingface/transformers": "^3.8.1",
+    "@lancedb/lancedb": "^0.26.2",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "instructor": "^1.0.0",
+    "langfuse": "^3.38.6",
+    "zod": "^3.24.0"
+  }
+}

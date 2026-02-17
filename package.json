@@ -1,0 +1,19 @@
+{
+  "name": "keanu",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": ["cli", "daemon"],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "daemon": "bun run --cwd daemon dev",
+    "cli": "bun run --cwd cli dev",
+    "test": "bun test",
+    "lint": "bunx biome check .",
+    "fmt": "bunx biome format --write .",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "typescript": "^5.7.0"
+  }
+}

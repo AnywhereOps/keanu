@@ -1,0 +1,9 @@
+# detectors/requirements.txt
+# The ML sidecar. TS daemon calls this for deep detection.
+
+fastapi>=0.115.0
+uvicorn>=0.34.0
+setfit>=1.1.0
+sentence-transformers>=3.3.0
+torch>=2.5.0
+scikit-learn>=1.6.0
