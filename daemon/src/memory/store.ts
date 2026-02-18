@@ -1,29 +1,31 @@
 // daemon/src/memory/store.ts
 // Memberberry: the agent remembers.
 //
-// Ported from keanu-0.0.1/src/keanu/memory/memberberry.py
-// JSONL append-only (source of truth) + bun:sqlite (derived index).
-// Nothing is deleted. Superseded memories get tombstoned.
+// Pure markdown storage + LanceDB vector index.
+//
+// Source of truth: markdown files (memory-{hero}-{date}.md)
+// Derived index: LanceDB (vectors + metadata columns, rebuildable)
+// No SQLite. No JSONL.
 
-import { Database } from "bun:sqlite"
-import {
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	writeFileSync,
-	appendFileSync,
-} from "node:fs"
+import * as lancedb from "@lancedb/lancedb"
+import { existsSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
 import type {
 	Memory,
 	MemoryType,
 	MemoryWithScore,
-	Namespace,
 	DaemonConfig,
 } from "../types"
 import { score } from "./scoring"
+import { embed, embedBatch, EMBEDDING_DIM } from "./embed"
+import {
+	appendDailyLog,
+	parseDailyLog,
+	findDailyLogs,
+	type DailyEntry,
+} from "./markdown"
 
-// --- Hashing (ported from compress/dns.py:short_hash) ---
+// --- Hashing ---
 
 function contentHash(content: string): string {
 	const hasher = new Bun.CryptoHasher("sha256")
@@ -37,20 +39,10 @@ function memoryId(content: string, createdAt: string): string {
 	return hasher.digest("hex").slice(0, 12)
 }
 
-// --- JSONL month-sharding (ported from memberberry.py:_shard_path) ---
-
-function shardPath(baseDir: string, namespace: string): string {
-	const now = new Date()
-	const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-	const dir = join(baseDir, namespace)
-	if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-	return join(dir, `${month}.jsonl`)
-}
-
 // --- Store ---
 
 export interface RecallOptions {
-	namespace?: Namespace
+	hero?: string
 	type?: MemoryType
 	tags?: string[]
 	limit?: number
@@ -62,114 +54,135 @@ export interface MemoryStats {
 	unique_tags: string[]
 }
 
+const TABLE_NAME = "memories"
+
 export class MemoryStore {
-	private db: ReturnType<typeof Database.prototype>
-	private baseDir: string
+	private memberberryDir: string
+	private heroName: string
 	private contentHashes: Set<string> = new Set()
+	private db: Awaited<ReturnType<typeof lancedb.connect>> | null = null
+	private table: Awaited<ReturnType<typeof lancedb.connect.prototype.openTable>> | null = null
+	private vectorsReady = false
 
-	constructor(config: DaemonConfig) {
-		this.baseDir = config.memory_dir
-		if (!existsSync(this.baseDir)) mkdirSync(this.baseDir, { recursive: true })
+	// In-memory cache of all parsed memories (for keyword search fallback)
+	private memoryCache: Memory[] = []
 
-		// SQLite is the derived index. JSONL is source of truth.
-		const dbPath = join(this.baseDir, "index.db")
-		this.db = new Database(dbPath)
-		this.db.run("PRAGMA journal_mode = WAL")
-		this.initSchema()
-		this.rebuildFromJSONL()
+	constructor(
+		private config: DaemonConfig,
+	) {
+		this.memberberryDir = config.memberberry_dir
+		this.heroName = config.hero_name
+		if (!existsSync(this.memberberryDir)) mkdirSync(this.memberberryDir, { recursive: true })
 	}
 
-	private initSchema(): void {
-		this.db.run(`
-			CREATE TABLE IF NOT EXISTS memories (
-				id TEXT PRIMARY KEY,
-				type TEXT NOT NULL,
-				content TEXT NOT NULL,
-				source TEXT DEFAULT '',
-				context TEXT DEFAULT '',
-				importance INTEGER DEFAULT 5,
-				namespace TEXT DEFAULT 'private',
-				created_at TEXT NOT NULL,
-				last_recalled TEXT DEFAULT '',
-				recall_count INTEGER DEFAULT 0,
-				superseded_by TEXT DEFAULT NULL,
-				hash TEXT NOT NULL,
-				tags TEXT DEFAULT '[]'
-			)
-		`)
-		this.db.run(`
-			CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type)
-		`)
-		this.db.run(`
-			CREATE INDEX IF NOT EXISTS idx_memories_namespace ON memories(namespace)
-		`)
-		this.db.run(`
-			CREATE INDEX IF NOT EXISTS idx_memories_hash ON memories(hash)
-		`)
-	}
+	/**
+	 * Initialize LanceDB and rebuild index from markdown files.
+	 * Call once at startup.
+	 */
+	async init(): Promise<void> {
+		const vectorDir = join(this.memberberryDir, "vectors")
+		if (!existsSync(vectorDir)) mkdirSync(vectorDir, { recursive: true })
 
-	// Rebuild SQLite from JSONL files (JSONL is source of truth)
-	private rebuildFromJSONL(): void {
-		this.contentHashes.clear()
-		const namespaces = ["private", "shared", "agent"]
+		try {
+			this.db = await lancedb.connect(vectorDir)
 
-		for (const ns of namespaces) {
-			const dir = join(this.baseDir, ns)
-			if (!existsSync(dir)) continue
-
-			// Find all JSONL files in this namespace
-			const files = Bun.file(dir)
-			try {
-				const entries = Array.from(
-					new Bun.Glob("*.jsonl").scanSync({ cwd: dir }),
-				)
-				for (const file of entries) {
-					const lines = readFileSync(join(dir, file), "utf-8")
-						.split("\n")
-						.filter((l) => l.trim())
-					for (const line of lines) {
-						try {
-							const memory = JSON.parse(line) as Memory
-							this.contentHashes.add(contentHash(memory.content))
-							this.upsertToSQLite(memory)
-						} catch {
-							// skip malformed lines
-						}
-					}
-				}
-			} catch {
-				// directory might not have any files yet
+			// Check if table exists
+			const tables = await this.db.tableNames()
+			if (tables.includes(TABLE_NAME)) {
+				this.table = await this.db.openTable(TABLE_NAME)
 			}
+
+			this.vectorsReady = true
+		} catch (err) {
+			console.error("LanceDB init failed (keyword search still works):", err)
+		}
+
+		// Load all memories from markdown into cache
+		await this.rebuildCache()
+	}
+
+	/**
+	 * Rebuild in-memory cache from markdown files.
+	 * Also rebuilds LanceDB if empty.
+	 */
+	private async rebuildCache(): Promise<void> {
+		this.memoryCache = []
+		this.contentHashes.clear()
+
+		// Parse all daily log files (all heroes — reading is shared)
+		const logFiles = findDailyLogs(this.memberberryDir)
+		for (const file of logFiles) {
+			const entries = parseDailyLog(file)
+			for (const entry of entries) {
+				const now = `${entry.date}T00:00:00.000Z`
+				const hash = contentHash(entry.content)
+				const id = memoryId(entry.content, now)
+
+				const memory: Memory = {
+					id,
+					type: entry.type as MemoryType,
+					content: entry.content,
+					source: "daily-log",
+					context: entry.sessionId || "",
+					importance: entry.importance,
+					hero: entry.hero,
+					created_at: now,
+					hash,
+					tags: entry.tags,
+				}
+
+				this.memoryCache.push(memory)
+				this.contentHashes.add(hash)
+			}
+		}
+
+		// If LanceDB is ready and table is empty/missing, rebuild vectors
+		if (this.vectorsReady && this.memoryCache.length > 0 && !this.table) {
+			await this.rebuildVectors()
 		}
 	}
 
-	private upsertToSQLite(memory: Memory): void {
-		const stmt = this.db.prepare(`
-			INSERT OR REPLACE INTO memories
-			(id, type, content, source, context, importance, namespace,
-			 created_at, last_recalled, recall_count, superseded_by, hash, tags)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`)
-		stmt.run(
-			memory.id,
-			memory.type,
-			memory.content,
-			memory.source || "",
-			memory.context || "",
-			memory.importance,
-			memory.namespace || "private",
-			memory.created_at,
-			"",
-			0,
-			memory.superseded_by || null,
-			memory.hash,
-			JSON.stringify([]), // tags stored as JSON string
-		)
+	/**
+	 * Batch-embed all cached memories into LanceDB.
+	 */
+	private async rebuildVectors(): Promise<void> {
+		if (!this.db || this.memoryCache.length === 0) return
+
+		const BATCH_SIZE = 32
+		const rows: Array<Record<string, unknown>> = []
+
+		for (let i = 0; i < this.memoryCache.length; i += BATCH_SIZE) {
+			const batch = this.memoryCache.slice(i, i + BATCH_SIZE)
+			const texts = batch.map((m) => m.content)
+			const vectors = await embedBatch(texts)
+
+			for (let j = 0; j < batch.length; j++) {
+				const m = batch[j]
+				rows.push({
+					id: m.id,
+					vector: vectors[j],
+					type: m.type,
+					content: m.content,
+					importance: m.importance,
+					hero: m.hero,
+					created_at: m.created_at,
+					hash: m.hash,
+					tags: m.tags.join(","),
+				})
+			}
+		}
+
+		// Drop and recreate table
+		try {
+			await this.db.dropTable(TABLE_NAME)
+		} catch { /* table might not exist */ }
+
+		this.table = await this.db.createTable(TABLE_NAME, rows)
 	}
 
 	// --- Public API ---
 
-	/** Remember something. Returns the memory ID. */
+	/** Remember something. Writes to markdown + indexes in LanceDB. Returns the memory ID. */
 	async remember(
 		content: string,
 		type: MemoryType,
@@ -177,22 +190,19 @@ export class MemoryStore {
 			importance?: number
 			source?: string
 			context?: string
-			namespace?: Namespace
+			tags?: string[]
 		} = {},
 	): Promise<string> {
 		const hash = contentHash(content)
 
 		// Dedup: if we already have this content, return existing
 		if (this.contentHashes.has(hash)) {
-			const existing = this.db
-				.prepare("SELECT id FROM memories WHERE hash = ?")
-				.get(hash) as { id: string } | undefined
+			const existing = this.memoryCache.find((m) => m.hash === hash)
 			if (existing) return existing.id
 		}
 
 		const now = new Date().toISOString()
 		const id = memoryId(content, now)
-		const namespace = opts.namespace || "private"
 
 		const memory: Memory = {
 			id,
@@ -201,125 +211,153 @@ export class MemoryStore {
 			source: opts.source || "conversation",
 			context: opts.context || "",
 			importance: opts.importance ?? 5,
-			namespace,
+			hero: this.heroName,
 			created_at: now,
 			hash,
+			tags: opts.tags || [],
 		}
 
-		// 1. Append to JSONL (source of truth)
-		const path = shardPath(this.baseDir, namespace)
-		appendFileSync(path, JSON.stringify(memory) + "\n")
+		// 1. Append to daily markdown (source of truth)
+		const entry: DailyEntry = {
+			type,
+			content,
+			importance: opts.importance,
+			tags: opts.tags,
+		}
+		appendDailyLog(this.memberberryDir, this.heroName, entry)
 
-		// 2. Insert into SQLite (derived index)
-		this.upsertToSQLite(memory)
-
-		// 3. Track content hash
+		// 2. Add to in-memory cache
+		this.memoryCache.push(memory)
 		this.contentHashes.add(hash)
+
+		// 3. Index in LanceDB (best-effort)
+		if (this.vectorsReady) {
+			this.indexMemory(memory).catch(() => {
+				// Vector indexing failed, keyword search still works
+			})
+		}
 
 		return id
 	}
 
-	/** Recall memories relevant to a query. */
+	/** Index a single memory in LanceDB. */
+	private async indexMemory(memory: Memory): Promise<void> {
+		if (!this.db) return
+
+		const vector = await embed(memory.content)
+		const row = {
+			id: memory.id,
+			vector,
+			type: memory.type,
+			content: memory.content,
+			importance: memory.importance,
+			hero: memory.hero,
+			created_at: memory.created_at,
+			hash: memory.hash,
+			tags: memory.tags.join(","),
+		}
+
+		if (!this.table) {
+			this.table = await this.db.createTable(TABLE_NAME, [row])
+		} else {
+			await this.table.add([row])
+		}
+	}
+
+	/** Recall memories relevant to a query. Combines vector + keyword scoring. */
 	async recall(
 		query: string,
 		opts: RecallOptions = {},
 	): Promise<MemoryWithScore[]> {
 		const limit = opts.limit ?? 10
-		const namespace = opts.namespace || "private"
 
-		// Build SQL query
-		let sql = "SELECT * FROM memories WHERE namespace = ? AND superseded_by IS NULL"
-		const params: unknown[] = [namespace]
+		// --- Vector search path ---
+		let vectorResults: Map<string, number> = new Map()
+		if (this.vectorsReady && this.table) {
+			try {
+				const queryVector = await embed(query)
+				let search = this.table.vectorSearch(queryVector).limit(limit * 2)
 
-		if (opts.type) {
-			sql += " AND type = ?"
-			params.push(opts.type)
+				// Filter by hero if specified
+				if (opts.hero) {
+					search = search.where(`hero = '${opts.hero}'`)
+				}
+				if (opts.type) {
+					search = search.where(`type = '${opts.type}'`)
+				}
+
+				const results = await search.toArray()
+				for (const r of results) {
+					vectorResults.set(r.id as string, r._distance as number)
+				}
+			} catch {
+				// Vector search failed, fall back to keyword only
+			}
 		}
 
-		const rows = this.db.prepare(sql).all(...params) as Array<
-			Memory & { tags: string }
-		>
+		// --- Keyword scoring path ---
+		let candidates = this.memoryCache
+		if (opts.hero) {
+			candidates = candidates.filter((m) => m.hero === opts.hero)
+		}
+		if (opts.type) {
+			candidates = candidates.filter((m) => m.type === opts.type)
+		}
 
-		// Score each memory using the ported relevance algorithm
 		const queryTags = opts.tags || []
-		const scored: MemoryWithScore[] = rows
-			.map((row) => {
-				const tags = JSON.parse(row.tags || "[]") as string[]
-				const relevance = score(
-					{
-						...row,
-						tags: undefined, // not in Memory type
-					} as Memory,
-					queryTags,
-					query,
-				)
-				return {
-					...row,
-					tags: undefined,
-					score: relevance,
-					distance: 1 - relevance, // for compatibility
-				} as MemoryWithScore
-			})
+		const scored: MemoryWithScore[] = candidates.map((m) => {
+			const keywordScore = score(m, queryTags, query)
+			const vectorDist = vectorResults.get(m.id)
+
+			let finalScore: number
+			if (vectorDist !== undefined) {
+				// Blend: vector similarity (60%) + keyword relevance (40%)
+				const vectorSim = 1 - vectorDist
+				finalScore = vectorSim * 0.6 + keywordScore * 0.4
+			} else {
+				finalScore = keywordScore
+			}
+
+			return {
+				...m,
+				score: finalScore,
+				distance: vectorDist ?? 1 - keywordScore,
+			}
+		})
+
+		return scored
 			.filter((m) => m.score > 0)
 			.sort((a, b) => b.score - a.score)
 			.slice(0, limit)
-
-		// Update recall stats for returned memories
-		const updateStmt = this.db.prepare(
-			"UPDATE memories SET last_recalled = ?, recall_count = recall_count + 1 WHERE id = ?",
-		)
-		const now = new Date().toISOString()
-		for (const m of scored) {
-			updateStmt.run(now, m.id)
-		}
-
-		return scored
-	}
-
-	/** Tombstone a memory (never delete, point forward). */
-	async supersede(oldId: string, newId: string): Promise<void> {
-		this.db
-			.prepare("UPDATE memories SET superseded_by = ? WHERE id = ?")
-			.run(newId, oldId)
 	}
 
 	/** Get a single memory by ID. */
 	get(id: string): Memory | null {
-		return (
-			(this.db.prepare("SELECT * FROM memories WHERE id = ?").get(id) as Memory) ||
-			null
-		)
+		return this.memoryCache.find((m) => m.id === id) || null
 	}
 
 	/** Stats about the memory store. */
 	stats(): MemoryStats {
-		const total = (
-			this.db
-				.prepare(
-					"SELECT COUNT(*) as count FROM memories WHERE superseded_by IS NULL",
-				)
-				.get() as { count: number }
-		).count
-
-		const byType = this.db
-			.prepare(
-				"SELECT type, COUNT(*) as count FROM memories WHERE superseded_by IS NULL GROUP BY type",
-			)
-			.all() as Array<{ type: string; count: number }>
-
+		const active = this.memoryCache
 		const by_type: Record<string, number> = {}
-		for (const row of byType) {
-			by_type[row.type] = row.count
+		const tagSet = new Set<string>()
+
+		for (const m of active) {
+			by_type[m.type] = (by_type[m.type] || 0) + 1
+			for (const t of m.tags) tagSet.add(t)
 		}
 
-		// Get unique tags from JSONL (tags not stored in SQLite yet)
-		const unique_tags: string[] = []
-
-		return { total, by_type, unique_tags }
+		return {
+			total: active.length,
+			by_type,
+			unique_tags: Array.from(tagSet),
+		}
 	}
 
-	/** Close the database connection. */
+	/** Close resources. */
 	close(): void {
-		this.db.close()
+		// LanceDB doesn't need explicit close
+		this.memoryCache = []
+		this.contentHashes.clear()
 	}
 }

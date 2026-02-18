@@ -7,7 +7,7 @@
 import { readFileSync, existsSync } from "node:fs"
 import type { DaemonConfig, LoopState } from "../types"
 import { readHuman, formatHumanReading } from "../pulse/human"
-import { recall, formatMemoryContext } from "../memory"
+import { recall, formatMemoryContext, loadMemoryMd } from "../memory"
 import { getStance } from "../hero/stance"
 
 export async function buildSystemPrompt(
@@ -53,6 +53,13 @@ export async function buildSystemPrompt(
 		if (humanContext) {
 			parts.push(humanContext)
 		}
+	}
+
+	// --- Memberberry MEMORY.md ---
+	// Curated long-term memory. Loaded every turn.
+	const memberberryMd = loadMemoryMd(config.memberberry_dir)
+	if (memberberryMd) {
+		parts.push(`## Memberberries\n\n${memberberryMd}`)
 	}
 
 	// --- Memory context ---

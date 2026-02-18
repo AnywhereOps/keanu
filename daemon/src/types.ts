@@ -102,11 +102,11 @@ export type MemoryType =
 	| "lesson"
 	| "insight"
 	| "preference"
+	| "commitment"
+	| "decision"
 	| "disagreement"
 	| "episode"
 	| "plan"
-
-export type Namespace = "private" | "shared" | "agent"
 
 export interface Memory {
 	id: string
@@ -115,10 +115,10 @@ export interface Memory {
 	source: string
 	context: string
 	importance: number // 1-10
-	namespace: Namespace
+	hero: string // which agent wrote this
 	created_at: string
-	superseded_by?: string // tombstone: never delete, point forward
 	hash: string // SHA-256 content hash for dedup
+	tags: string[]
 }
 
 export interface MemoryWithScore extends Memory {
@@ -170,6 +170,8 @@ export interface DaemonConfig {
 	model: string
 	max_tokens: number
 	memory_dir: string
+	memberberry_dir: string // ~/memberberries — git repo, shared across agents
+	hero_name: string // agent identity — scopes markdown files
 	soul_path: string
 	status_path: string
 	langfuse_enabled: boolean

@@ -20,12 +20,20 @@ export function loadConfig(): DaemonConfig {
 		}
 	}
 
+	const heroName = process.env.KEANU_HERO || fileConfig.hero_name || "keanu"
+	const memberberryDir =
+		process.env.KEANU_MEMBERBERRY_DIR ||
+		fileConfig.memberberry_dir ||
+		join(HOME, "memberberries")
+
 	return {
 		socket_path: process.env.KEANU_SOCKET || fileConfig.socket_path || "/tmp/keanu.sock",
 		model:
 			process.env.KEANU_MODEL || fileConfig.model || "claude-sonnet-4-20250514",
 		max_tokens: Number(process.env.KEANU_MAX_TOKENS) || fileConfig.max_tokens || 8192,
 		memory_dir: fileConfig.memory_dir || join(KEANU_HOME, "memory"),
+		memberberry_dir: memberberryDir,
+		hero_name: heroName,
 		soul_path: fileConfig.soul_path || findSoulPath(),
 		status_path: fileConfig.status_path || findStatusPath(),
 		langfuse_enabled: process.env.LANGFUSE_SECRET_KEY !== undefined,

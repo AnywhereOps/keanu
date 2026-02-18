@@ -107,7 +107,7 @@ export function score(
 	queryText: string,
 ): number {
 	const base = memory.importance / 10.0
-	const tags = tagScore([], queryTags) // TODO: add tags to Memory type
+	const tags = tagScore(memory.tags || [], queryTags)
 	const text = textScore(memory, queryText)
 	const recency = recencyScore(memory.last_recalled)
 	const typeWeight = TYPE_WEIGHTS[memory.type] ?? 0.1

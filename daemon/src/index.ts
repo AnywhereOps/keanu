@@ -7,7 +7,7 @@ import { unlinkSync, existsSync } from "node:fs"
 import { loadConfig } from "./config"
 import { createLoopState, step } from "./loop"
 import { initObserve, flushObserve } from "./observe"
-import { initMemory, remember, recall, formatMemoryContext, getTracker, getStats } from "./memory"
+import { initMemory, remember, recall, formatMemoryContext, getTracker, getStats, flushMemories } from "./memory"
 import { dream } from "./hero/dream"
 import { speak } from "./hero/speak"
 import type { HeroMode, LoopState, MemoryType } from "./types"
@@ -114,6 +114,7 @@ const server = Bun.listen({
 								res = { type: "pulse", pulse: state.pulse }
 								break
 							case "reset":
+								try { await flushMemories(config) } catch { /* best-effort */ }
 								state = createLoopState(req.hero || "chat")
 								res = { type: "ack", content: "session reset" }
 								break
@@ -212,7 +213,13 @@ console.log("the dog chose to stay.")
 
 // Graceful shutdown
 process.on("SIGINT", async () => {
-	console.log("\nshutting down...")
+	console.log("\nflushing memories...")
+	try {
+		await flushMemories(config)
+	} catch (err) {
+		console.error("memory flush failed:", err)
+	}
+	console.log("shutting down...")
 	await flushObserve()
 	server.stop()
 	if (existsSync(config.socket_path)) {
@@ -222,6 +229,11 @@ process.on("SIGINT", async () => {
 })
 
 process.on("SIGTERM", async () => {
+	try {
+		await flushMemories(config)
+	} catch (err) {
+		console.error("memory flush failed:", err)
+	}
 	await flushObserve()
 	server.stop()
 	if (existsSync(config.socket_path)) {
