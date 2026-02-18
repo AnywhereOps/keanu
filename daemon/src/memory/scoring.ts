@@ -1,8 +1,8 @@
 // daemon/src/memory/scoring.ts
 // Relevance scoring for memories.
 //
-// Ported EXACTLY from keanu-0.0.1/src/keanu/memory/memberberry.py
-// Memory.relevance_score() method + class constants.
+// Ported from keanu-0.0.1/src/keanu/memory/memberberry.py
+// Simplified: removed recency/decay (not tracked in markdown store).
 
 import type { Memory } from "../types"
 
@@ -11,13 +11,6 @@ import type { Memory } from "../types"
 const TAG_OVERLAP_WEIGHT = 0.3
 const WORD_OVERLAP_WEIGHT = 0.2
 const WORD_OVERLAP_CAP = 1.0
-
-const RECENCY_BOOST_7D = 0.3
-const RECENCY_BOOST_30D = 0.15
-
-const DECAY_AGE_DAYS = 90
-const DECAY_MIN_RECALLS = 3
-const DECAY_FACTOR = 0.5
 
 // From memberberry.py Memory.TYPE_WEIGHTS
 const TYPE_WEIGHTS: Record<string, number> = {
@@ -28,20 +21,12 @@ const TYPE_WEIGHTS: Record<string, number> = {
 	lesson: 0.15,
 	preference: 0.1,
 	fact: 0.05,
-	// Types in TS but not in Python scoring — give sensible defaults
 	disagreement: 0.25,
 	episode: 0.1,
 	plan: 0.2,
 }
 
 // --- Helpers ---
-
-function daysSince(isoDate: string): number {
-	if (!isoDate) return Infinity
-	const then = new Date(isoDate).getTime()
-	const now = Date.now()
-	return (now - then) / (1000 * 60 * 60 * 24)
-}
 
 function wordSet(text: string): Set<string> {
 	return new Set(
@@ -52,7 +37,7 @@ function wordSet(text: string): Set<string> {
 	)
 }
 
-// --- Score components (each ported from memberberry.py) ---
+// --- Score components ---
 
 function tagScore(memoryTags: string[], queryTags: string[]): number {
 	if (!queryTags.length || !memoryTags.length) return 0
@@ -72,52 +57,23 @@ function textScore(memory: Memory, queryText: string): number {
 	return Math.min(overlap * WORD_OVERLAP_WEIGHT, WORD_OVERLAP_CAP)
 }
 
-function recencyScore(lastRecalled: string | undefined): number {
-	if (!lastRecalled) return 0
-	const days = daysSince(lastRecalled)
-	if (days < 7) return RECENCY_BOOST_7D
-	if (days < 30) return RECENCY_BOOST_30D
-	return 0
-}
-
-function applyDecay(
-	baseScore: number,
-	createdAt: string,
-	recallCount: number,
-): number {
-	const age = daysSince(createdAt)
-	if (age > DECAY_AGE_DAYS && recallCount < DECAY_MIN_RECALLS) {
-		return baseScore * DECAY_FACTOR
-	}
-	return baseScore
-}
-
 // --- Main scoring function ---
 
 /**
  * Score a memory's relevance to a query.
- * Ported exactly from memberberry.py Memory.relevance_score()
  *
- * score = importance/10 + tag_overlap + text_overlap + recency + type_weight
- *         then apply decay if old + rarely recalled
+ * score = importance/10 + tag_overlap + text_overlap + type_weight
  */
 export function score(
-	memory: Memory & { last_recalled?: string; recall_count?: number },
+	memory: Memory,
 	queryTags: string[],
 	queryText: string,
 ): number {
 	const base = memory.importance / 10.0
 	const tags = tagScore(memory.tags || [], queryTags)
 	const text = textScore(memory, queryText)
-	const recency = recencyScore(memory.last_recalled)
 	const typeWeight = TYPE_WEIGHTS[memory.type] ?? 0.1
 
-	const raw = base + tags + text + recency + typeWeight
-	const decayed = applyDecay(
-		raw,
-		memory.created_at,
-		memory.recall_count ?? 0,
-	)
-
-	return Math.round(decayed * 1000) / 1000
+	const raw = base + tags + text + typeWeight
+	return Math.round(raw * 1000) / 1000
 }

@@ -172,10 +172,12 @@ export class MemoryStore {
 			}
 		}
 
-		// Drop and recreate table
-		try {
-			await this.db.dropTable(TABLE_NAME)
-		} catch { /* table might not exist */ }
+		// Create table (skip if another agent already created it)
+		const tables = await this.db.tableNames()
+		if (tables.includes(TABLE_NAME)) {
+			this.table = await this.db.openTable(TABLE_NAME)
+			return
+		}
 
 		this.table = await this.db.createTable(TABLE_NAME, rows)
 	}
@@ -278,12 +280,14 @@ export class MemoryStore {
 				const queryVector = await embed(query)
 				let search = this.table.vectorSearch(queryVector).limit(limit * 2)
 
-				// Filter by hero if specified
+				// Filter by hero if specified (sanitize to prevent injection)
 				if (opts.hero) {
-					search = search.where(`hero = '${opts.hero}'`)
+					const safeHero = opts.hero.replace(/[^a-zA-Z0-9_-]/g, "")
+					search = search.where(`hero = '${safeHero}'`)
 				}
 				if (opts.type) {
-					search = search.where(`type = '${opts.type}'`)
+					const safeType = opts.type.replace(/[^a-zA-Z0-9_-]/g, "")
+					search = search.where(`type = '${safeType}'`)
 				}
 
 				const results = await search.toArray()

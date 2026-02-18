@@ -109,8 +109,14 @@ export async function sync(repoDir: string): Promise<void> {
 		try {
 			exec("git pull --rebase", repoDir)
 		} catch {
-			// Rebase failed — shouldn't happen with different files, but don't crash
-			exec("git rebase --abort", repoDir)
+			// Only abort if a rebase is actually in progress
+			if (
+				existsSync(join(repoDir, ".git", "rebase-merge")) ||
+				existsSync(join(repoDir, ".git", "rebase-apply"))
+			) {
+				exec("git rebase --abort", repoDir)
+			}
+			// Otherwise it was a network/auth error — nothing to abort
 		}
 
 		const status = exec("git status --porcelain", repoDir)

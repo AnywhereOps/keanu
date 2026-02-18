@@ -127,7 +127,8 @@ export function parseDailyLog(filePath: string): ParsedMemoryEntry[] {
 
 	const filename = basename(filePath)
 	// memory-keanu-2026-02-17.md -> hero=keanu, date=2026-02-17
-	const match = filename.match(/^memory-(.+)-(\d{4}-\d{2}-\d{2})\.md$/)
+	// Non-greedy .+? so hyphenated hero names (hero-name) parse correctly
+	const match = filename.match(/^memory-(.+?)-(\d{4}-\d{2}-\d{2})\.md$/)
 	if (!match) return []
 
 	const hero = match[1]

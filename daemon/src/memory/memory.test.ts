@@ -218,6 +218,22 @@ describe("markdown", () => {
 		expect(findDailyLogs(dir, "neo").length).toBe(1)
 		expect(findDailyLogs(dir).length).toBe(2)
 	})
+
+	test("parseDailyLog handles hyphenated hero names", () => {
+		appendDailyLog(dir, "hero-name", {
+			type: "decision",
+			content: "hyphenated heroes work",
+			importance: 7,
+		})
+
+		const logs = findDailyLogs(dir, "hero-name")
+		expect(logs.length).toBe(1)
+
+		const entries = parseDailyLog(logs[0])
+		expect(entries.length).toBe(1)
+		expect(entries[0].hero).toBe("hero-name")
+		expect(entries[0].content).toBe("hyphenated heroes work")
+	})
 })
 
 // --- Git layer ---
@@ -341,11 +357,11 @@ describe("relevance scoring", () => {
 		expect(withTags).toBeGreaterThan(withoutTags)
 	})
 
-	test("old rarely-recalled memories decay", () => {
+	test("same content scores equal regardless of age", () => {
 		const old = new Date()
-		old.setDate(old.getDate() - 100) // 100 days ago
+		old.setDate(old.getDate() - 100)
 
-		const memory: Memory & { recall_count: number } = {
+		const oldMemory: Memory = {
 			id: "f",
 			type: "fact",
 			content: "old info",
@@ -356,18 +372,17 @@ describe("relevance scoring", () => {
 			created_at: old.toISOString(),
 			hash: "fff",
 			tags: [],
-			recall_count: 1,
 		}
 
-		const fresh: Memory & { recall_count: number } = {
-			...memory,
+		const fresh: Memory = {
+			...oldMemory,
 			id: "g",
 			created_at: new Date().toISOString(),
 			hash: "ggg",
-			recall_count: 0,
 		}
 
-		expect(score(memory, [], "")).toBeLessThan(score(fresh, [], ""))
+		// No recency/decay — same content, same score
+		expect(score(oldMemory, [], "")).toBe(score(fresh, [], ""))
 	})
 })
 
