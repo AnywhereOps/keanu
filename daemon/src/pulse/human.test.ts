@@ -1,5 +1,5 @@
 // daemon/src/pulse/human.test.ts
-// Tests for human state detection.
+// Tests for human state detection: tone + bullshit.
 
 import { describe, expect, test } from "bun:test"
 import { readHuman, formatHumanReading } from "./human"
@@ -39,7 +39,7 @@ describe("human state detection", () => {
 		expect(reading.tone).toBe("neutral")
 	})
 
-	test("formatHumanReading returns null for neutral", () => {
+	test("formatHumanReading returns null for neutral with no bullshit", () => {
 		const reading = readHuman("Can you refactor the user service to use dependency injection?", [])
 		expect(formatHumanReading(reading)).toBeNull()
 	})
@@ -63,5 +63,49 @@ describe("human state detection", () => {
 		]
 		const reading = readHuman("ok", history)
 		expect(reading.tone).toBe("fatigued")
+	})
+})
+
+describe("human bullshit detection", () => {
+	test("detects human sycophancy", () => {
+		const reading = readHuman(
+			"That's a great point! You nailed it. I completely agree with everything. Honestly inspiring.",
+			[],
+		)
+		expect(reading.bullshit.some((b) => b.type === "sycophancy")).toBe(true)
+	})
+
+	test("detects human embellishment", () => {
+		const reading = readHuman(
+			"I've done a comprehensive analysis and my approach is state-of-the-art and game-changing.",
+			[],
+		)
+		expect(reading.bullshit.some((b) => b.type === "embellishment")).toBe(true)
+	})
+
+	test("detects human half truth", () => {
+		const reading = readHuman(
+			"It's obviously the only way to do it. Everyone knows this is guaranteed to work. It's simply impossible to fail.",
+			[],
+		)
+		expect(reading.bullshit.some((b) => b.type === "half_truth")).toBe(true)
+	})
+
+	test("clean human input has no bullshit", () => {
+		const reading = readHuman(
+			"The auth middleware on line 47 has a bug. JWT expiry check compares ms to seconds.",
+			[],
+		)
+		expect(reading.bullshit).toHaveLength(0)
+	})
+
+	test("formatHumanReading includes bullshit when detected", () => {
+		const reading = readHuman(
+			"Great question! That's an excellent approach. I completely agree.",
+			[],
+		)
+		const formatted = formatHumanReading(reading)
+		expect(formatted).toContain("bullshit")
+		expect(formatted).toContain("sycophancy")
 	})
 })

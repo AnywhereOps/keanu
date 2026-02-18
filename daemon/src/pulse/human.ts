@@ -1,15 +1,16 @@
 // daemon/src/pulse/human.ts
 // Human state detection. Not to control. To be aware.
 //
+// Two layers:
+//   1. Tone detection: frustrated, confused, excited, fatigued, looping
+//   2. Bullshit detection: same 8 types as agent. Same mirror.
+//
 // Ported from keanu-0.0.1 empathy detectors (detect/engine.py).
-// The Python version uses vector similarity. This is the fast
-// heuristic path - regex + pattern matching. Good enough for
-// the hot loop. Deep detection goes through the sidecar.
 
 import type { HumanReading } from "../types"
+import { detectBullshit } from "./bullshit"
 
 // --- Empathy map ---
-// From keanu-0.0.1: detector name -> (state, meaning)
 const EMPATHY_MAP: Record<string, { tone: HumanReading["tone"]; meaning: string }> = {
 	frustrated: { tone: "frustrated", meaning: "anger is information" },
 	confused: { tone: "confused", meaning: "needs a map not a lecture" },
@@ -22,15 +23,15 @@ const EMPATHY_MAP: Record<string, { tone: HumanReading["tone"]; meaning: string 
 
 const FRUSTRATED_PATTERNS = [
 	/^(no|wrong|that's not|you're not|stop|ugh|ffs|wtf|jfc)/i,
-	/!{2,}/, // multiple exclamation marks
-	/\.{3,}/, // ellipsis (frustration or trailing off)
+	/!{2,}/,
+	/\.{3,}/,
 	/(this is broken|doesn't work|still wrong|not what i asked|try again)/i,
 	/(waste of time|useless|terrible|awful)/i,
 ]
 
 const CONFUSED_PATTERNS = [
 	/^(what|huh|i don't understand|wait what|confused|lost)/i,
-	/\?{2,}/, // multiple question marks
+	/\?{2,}/,
 	/(what do you mean|can you explain|i'm confused|makes no sense)/i,
 	/(which one|how does that|where did that come from)/i,
 ]
@@ -38,12 +39,12 @@ const CONFUSED_PATTERNS = [
 const EXCITED_PATTERNS = [
 	/(yes!|perfect|exactly|love it|awesome|brilliant|nice|lets go|ship it)/i,
 	/(this is great|that's it|nailed it|beautiful)/i,
-	/(!.*!)/,  // enthusiasm via multiple exclamations in context
+	/(!.*!)/,
 ]
 
 const FATIGUED_PATTERNS = [
 	/(tired|exhausted|done for today|need a break|brain is fried)/i,
-	/(whatever|fine|sure|ok|k)$/i, // terse acceptance
+	/(whatever|fine|sure|ok|k)$/i,
 ]
 
 export function readHuman(input: string, history: string[]): HumanReading {
@@ -57,13 +58,12 @@ export function readHuman(input: string, history: string[]): HumanReading {
 		confidence += 0.05
 	}
 
-	// --- Check each pattern set ---
+	// --- Tone detection ---
 	const frustrationHits = FRUSTRATED_PATTERNS.filter((p) => p.test(input)).length
 	const confusionHits = CONFUSED_PATTERNS.filter((p) => p.test(input)).length
 	const excitedHits = EXCITED_PATTERNS.filter((p) => p.test(input)).length
 	const fatigueHits = FATIGUED_PATTERNS.filter((p) => p.test(input)).length
 
-	// Score and pick dominant tone
 	const scores: Array<{ tone: HumanReading["tone"]; hits: number; weight: number }> = [
 		{ tone: "frustrated", hits: frustrationHits, weight: 0.2 },
 		{ tone: "confused", hits: confusionHits, weight: 0.18 },
@@ -87,7 +87,6 @@ export function readHuman(input: string, history: string[]): HumanReading {
 		const inputLower = input.toLowerCase().trim()
 		const similar = recent.filter((h) => {
 			const hLower = h.toLowerCase().trim()
-			// Check for substantial overlap
 			return (
 				hLower === inputLower ||
 				(inputLower.length > 10 && hLower.includes(inputLower.slice(0, 20))) ||
@@ -115,22 +114,36 @@ export function readHuman(input: string, history: string[]): HumanReading {
 		}
 	}
 
+	// --- Bullshit detection (same 8 types as agent) ---
+	const bullshit = detectBullshit(input)
+	for (const bs of bullshit) {
+		signals.push(`human_bs:${bs.type}:${bs.score.toFixed(2)}`)
+	}
+
 	return {
 		tone,
 		confidence: Math.min(1, confidence),
 		signals,
+		bullshit,
 	}
 }
 
 // Format human reading for system prompt injection
 export function formatHumanReading(reading: HumanReading): string | null {
-	if (reading.tone === "neutral") return null
+	if (reading.tone === "neutral" && reading.bullshit.length === 0) return null
 
-	const empathy = EMPATHY_MAP[reading.tone]
-	const meaning = empathy?.meaning ?? reading.tone
+	const parts: string[] = []
 
-	return (
-		`[pulse: human tone is ${reading.tone} (${reading.confidence.toFixed(2)}). ` +
-		`${meaning}. ${reading.signals.join(", ")}. adjust accordingly.]`
-	)
+	if (reading.tone !== "neutral") {
+		const empathy = EMPATHY_MAP[reading.tone]
+		const meaning = empathy?.meaning ?? reading.tone
+		parts.push(`tone=${reading.tone} (${meaning})`)
+	}
+
+	if (reading.bullshit.length > 0) {
+		const bsTypes = reading.bullshit.map((b) => b.type).join(", ")
+		parts.push(`bullshit=[${bsTypes}]`)
+	}
+
+	return `[pulse: human ${parts.join(". ")}. confidence=${reading.confidence.toFixed(2)}. awareness, not judgment.]`
 }

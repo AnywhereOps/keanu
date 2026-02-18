@@ -93,6 +93,25 @@ export interface HumanReading {
 	tone: "frustrated" | "excited" | "confused" | "neutral" | "fatigued" | "looping"
 	confidence: number
 	signals: string[]
+	bullshit: BullshitReading[]
+}
+
+// --- Bullshit Detection (universal — applies to agent AND human) ---
+
+export type BullshitType =
+	| "sycophancy"
+	| "safety_theater"
+	| "hedge_fog"
+	| "list_dumping"
+	| "vagueness"
+	| "half_truth"
+	| "embellishment"
+	| "half_ass"
+
+export interface BullshitReading {
+	type: BullshitType
+	score: number // 0-1
+	signals: string[] // what triggered it
 }
 
 // --- Memory ---
